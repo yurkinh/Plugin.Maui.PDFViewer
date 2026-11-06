@@ -228,6 +228,16 @@ public class PdfViewTest : IAsyncLifetime
         raised.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task APagesTextCanBeRead()
+    {
+        var sut = await OpenLinksAsync();
+
+        (await sut.GetPageTextAsync(3)).Should().StartWith("Page 3\nBack to page 1");
+        (await sut.GetPageTextAsync(9)).Should().BeEmpty();
+        (await NewView().GetPageTextAsync(1)).Should().BeEmpty("no document is open");
+    }
+
     private sealed class InlineDispatcherProvider : IDispatcherProvider
     {
         private readonly InlineDispatcher dispatcher = new();

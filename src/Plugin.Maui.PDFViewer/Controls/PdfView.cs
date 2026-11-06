@@ -156,6 +156,14 @@ public partial class PdfView : ContentView
     /// <summary>Fit the page to the width.</summary>
     public ICommand FitWidthCommand { get; }
 
+    /// <summary>
+    /// The text of a page, as it is drawn: words separated by spaces and lines by line breaks ("\n"). Empty when no
+    /// document is open, the page does not exist, or the page has no text (a scanned page without recognised text).
+    /// </summary>
+    /// <param name="pageNumber">The page; the first page is 1.</param>
+    public async Task<string> GetPageTextAsync(int pageNumber) =>
+        viewModel is { } vm ? (await vm.GetTextAsync(pageNumber)).Text : "";
+
     /// <summary>Raised on the UI thread when a document has opened and its first page is shown.</summary>
     public event EventHandler? DocumentLoaded;
 

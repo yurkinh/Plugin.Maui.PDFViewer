@@ -80,6 +80,10 @@ Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfVi
 
 `FirstPageCommand`, `PreviousPageCommand`, `NextPageCommand`, `LastPageCommand`, `ZoomInCommand`, `ZoomOutCommand`, `FitPageCommand` and `FitWidthCommand` are for your own toolbars, menus and keyboard shortcuts. Their `CanExecute` follows the open document, and `CanExecuteChanged` is raised on the UI thread.
 
+### Methods
+
+`GetPageTextAsync(pageNumber)` returns the text of a page, with spaces between words and line breaks between lines, for copying, sharing or reading aloud. A scanned page without recognised text has none.
+
 ### Events
 
 `DocumentLoaded` is raised once the first page is shown. `LoadFailed` is raised with the exception when a document cannot be opened. Both are raised on the UI thread.
