@@ -18,6 +18,12 @@
     "password": null
   },
   {
+    "file": "links.pdf",
+    "title": "Links",
+    "description": "Links to other pages, named destinations and a web address; tap one to follow it.",
+    "password": null
+  },
+  {
     "file": "encrypted.pdf",
     "title": "Encrypted (password: melville)",
     "description": "AES-256 encryption. The user password is \u0022melville\u0022.",

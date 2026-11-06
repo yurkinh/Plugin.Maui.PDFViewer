@@ -1,7 +1,10 @@
 using FluentAssertions;
 using Melville.Pdf.LowLevel.Writers.DocumentWriters;
 using Melville.Pdf.Model.Creators;
+using Melville.Pdf.ReferenceDocuments.PageProperties;
 using Melville.Pdf.ViewerModel;
+using Microsoft.Maui;
+using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Dispatching;
 using Xunit;
 
@@ -140,6 +143,89 @@ public class PdfViewTest : IAsyncLifetime
         sut.PageCount.Should().Be(0);
         sut.ViewState.Should().BeNull();
         sut.NextPageCommand.CanExecute(null).Should().BeFalse();
+    }
+
+    // Lay the view out without a window, so the page has a viewport. Handlers normally run the cross-platform
+    // layout of each container; with none, do it here, down the tree.
+    private static void LayOut(PdfView view, double width, double height)
+    {
+        IView root = view;
+        root.Measure(width, height);
+        root.Arrange(new Rect(0, 0, width, height));
+        ArrangeChildren(root);
+
+        static void ArrangeChildren(IView container)
+        {
+            if (container is ICrossPlatformLayout layout)
+            {
+                layout.CrossPlatformMeasure(container.Frame.Width, container.Frame.Height);
+                layout.CrossPlatformArrange(new Rect(Point.Zero, container.Frame.Size));
+            }
+            if (container is IVisualTreeElement element)
+                foreach (var child in element.GetVisualChildren().OfType<IView>()) ArrangeChildren(child);
+        }
+    }
+
+    private async Task<PdfView> OpenLinksAsync()
+    {
+        var sut = NewView();
+        sut.ShowToolbar = false;
+        LayOut(sut, 612, 792); // fit page: scale 1, so view points are page points
+        using var bytes = new MemoryStream();
+        await new Links().WritePdfAsync(bytes);
+        await OpenAsync(sut, PdfSource.FromBytes(bytes.ToArray()));
+        return sut;
+    }
+
+    [Fact]
+    public async Task TappingALinkGoesToItsPage()
+    {
+        var sut = await OpenLinksAsync();
+        PdfLinkTappedEventArgs? tapped = null;
+        sut.LinkTapped += (_, e) => tapped = e;
+
+        (await sut.FollowLinkAtAsync(100, 90)).Should().BeTrue(); // the first link: page 3
+
+        tapped!.PageNumber.Should().Be(3);
+        tapped.Uri.Should().BeNull();
+        sut.PageNumber.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task AHandledLinkIsNotFollowed()
+    {
+        var sut = await OpenLinksAsync();
+        sut.LinkTapped += (_, e) => e.Handled = true;
+
+        (await sut.FollowLinkAtAsync(100, 90)).Should().BeTrue();
+
+        sut.PageNumber.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AWebLinkIsReportedWithItsAddress()
+    {
+        var sut = await OpenLinksAsync();
+        PdfLinkTappedEventArgs? tapped = null;
+        sut.LinkTapped += (_, e) => tapped = e;
+
+        (await sut.FollowLinkAtAsync(100, 90 + 4 * 48)).Should().BeTrue();
+
+        tapped!.Uri.Should().Be(Links.WebAddress);
+        tapped.PageNumber.Should().BeNull();
+        sut.PageNumber.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task TappingOutsideALinkDoesNothing()
+    {
+        var sut = await OpenLinksAsync();
+        var raised = false;
+        sut.LinkTapped += (_, _) => raised = true;
+
+        (await sut.FollowLinkAtAsync(10, 10)).Should().BeFalse();
+
+        raised.Should().BeFalse();
     }
 
     private sealed class InlineDispatcherProvider : IDispatcherProvider

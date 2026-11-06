@@ -31,6 +31,8 @@ await WriteAsync("large-page.pdf", "Very large page", "One A0 page (2384 × 3370
     LargePageAsync);
 await WriteAsync("layers.pdf", "Layers", "Three optional-content groups; turn them on and off in the layers panel.",
     LayersAsync);
+await WriteAsync("links.pdf", "Links", "Links to other pages, named destinations and a web address; tap one to follow it.",
+    s => new Melville.Pdf.ReferenceDocuments.PageProperties.Links().WritePdfAsync(s).AsTask());
 await WriteAsync("encrypted.pdf", "Encrypted (password: melville)", "AES-256 encryption. The user password is \"melville\".",
     EncryptedAsync, password: "melville");
 

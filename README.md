@@ -11,6 +11,7 @@ Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a P
 - **Display modes:** one page at a time, or **continuous scroll** through all pages, vertically or horizontally. Only the pages near the view are rendered.
 - **Gestures:** pinch to zoom around your fingers, drag to pan, double-tap to switch between the whole page and 2×.
 - **Toolbar:** first, previous, next and last page; a page number box; zoom in and out; fit page; fit width; single page or continuous scroll; layers. Hide it with `ShowToolbar="False"` to use your own controls with the public commands.
+- **Links:** tap a link to go to the page it points to, at the position it names. Web and mail links open in the browser or mail app. The `LinkTapped` event lets the app handle links itself.
 - **Layers:** optional content groups can be shown and hidden.
 - **Encrypted PDFs:** plug in your own `IPasswordSource` to supply passwords.
 - **Sources:** app package files, the file system, `FilePicker` results (including Android content URIs), byte arrays and streams.
@@ -83,6 +84,21 @@ Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfVi
 
 `DocumentLoaded` is raised once the first page is shown. `LoadFailed` is raised with the exception when a document cannot be opened. Both are raised on the UI thread.
 
+`LinkTapped` is raised on the UI thread when a link is tapped or clicked, before the viewer follows it. Its arguments carry either `PageNumber` (a link within the document) or `Uri` (any other link). Set `Handled` to stop the viewer from following the link:
+
+```csharp
+pdfView.LinkTapped += (_, e) =>
+{
+    // Open only secure web links; the viewer still follows links within the document.
+    if (e.Uri is { } address && !address.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        e.Handled = true;
+};
+```
+
+Without a handler, links within the document go to their page and keep the zoom. Links to `http`, `https` and `mailto` addresses open with `Launcher`. Links to other addresses, such as `file:` or app schemes, do nothing; the app can still handle them in `LinkTapped`.
+
+The viewer reads the link destinations PDF defines: explicit destinations, named destinations, and GoTo, URI and Named (next, previous, first and last page) actions. Links to other files (GoToR), launch actions, JavaScript and form actions are ignored.
+
 ### Saving the reading position
 
 ```csharp
@@ -129,7 +145,9 @@ These Release-build timings come from a simulator and an emulator, not real devi
 
 ## Limitations
 
-- No text search or selection, annotations, form filling, link navigation or printing.
+- No text search or selection, annotation editing, form filling or printing.
+- No "back" after following a link, and no pointer cursor over links on desktop.
+- Links can't be reached with a screen reader yet.
 - A screen reader hears "Page X of Y", not the page text.
 - Windows has not been tested on a device.
 

@@ -1,4 +1,4 @@
-using System.Windows.Input;
+﻿using System.Windows.Input;
 using System.ComponentModel;
 using System.Globalization;
 using Melville.Pdf.LowLevel.Parsing.ParserContext;
@@ -6,6 +6,7 @@ using Melville.Pdf.FontLibrary;
 using Melville.Pdf.MauiGraphics;
 using Melville.Pdf.MauiGraphics.Drawing;
 using Melville.Pdf.Model;
+using Melville.Pdf.Model.Documents;
 using Melville.Pdf.Model.Renderers.FontRenderings.DefaultFonts;
 using Melville.Pdf.ViewerModel;
 using ScrollOrientation = Microsoft.Maui.ScrollOrientation;
@@ -15,8 +16,8 @@ using ViewModel = Melville.Pdf.ViewerModel.PdfViewerViewModel<Melville.Pdf.MauiG
 namespace Plugin.Maui.PDFViewer;
 
 /// <summary>
-/// Displays a PDF document one page at a time, with page navigation, zoom (buttons, pinch, double tap), panning
-/// and an optional layers list. Set <see cref="Source"/> to open a document.
+/// Displays a PDF document one page at a time or as a scrolling strip, with page navigation, zoom (buttons, pinch,
+/// double tap), panning, links and an optional layers list. Set <see cref="Source"/> to open a document.
 /// </summary>
 public partial class PdfView : ContentView
 {
@@ -161,6 +162,12 @@ public partial class PdfView : ContentView
     /// <summary>Raised on the UI thread when a document could not be opened.</summary>
     public event EventHandler<Exception>? LoadFailed;
 
+    /// <summary>
+    /// Raised on the UI thread when a link in the document is tapped, before the viewer follows it. Set
+    /// <see cref="PdfLinkTappedEventArgs.Handled"/> to follow it yourself, or not at all.
+    /// </summary>
+    public event EventHandler<PdfLinkTappedEventArgs>? LinkTapped;
+
     // ---- Implementation ---------------------------------------------------------------------------------------
 
     private const uint BitmapDelayMs = 150;
@@ -191,7 +198,7 @@ public partial class PdfView : ContentView
 
         pageView = new GraphicsView { Drawable = drawable, AutomationId = "PdfView.Page" };
         SemanticProperties.SetDescription(pageView, "No document");
-        SemanticProperties.SetHint(pageView, "Pinch or use the zoom buttons to zoom, drag to scroll");
+        SemanticProperties.SetHint(pageView, "Pinch or use the zoom buttons to zoom, drag to scroll, tap a link to follow it");
         pageView.SizeChanged += (_, _) => viewModel?.SetViewport(pageView.Width, pageView.Height);
         AddGestures(pageView);
         pageView.HandlerChanged += (_, _) => AttachPlatformGestures(pageView);
@@ -645,9 +652,79 @@ public partial class PdfView : ContentView
                 vm.ZoomAt(2, point.X, point.Y);
         };
 
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += async (_, e) =>
+        {
+            if (e.GetPosition(view) is { } point) await FollowLinkAtAsync(point.X, point.Y);
+        };
+
         view.GestureRecognizers.Add(pinch);
         view.GestureRecognizers.Add(pan);
         view.GestureRecognizers.Add(doubleTap);
+        view.GestureRecognizers.Add(tap);
+    }
+
+    // ---- Links ------------------------------------------------------------------------------------------------
+
+    // Addresses opened without asking the app: web pages and mail. Anything else (file:, javascript:, custom app
+    // schemes) is only reported through LinkTapped, because a document should not launch arbitrary things.
+    private static readonly string[] OpenedSchemes = ["http", "https", "mailto"];
+
+    /// <summary>
+    /// Follow the link under a point of the page view, if there is one: raise <see cref="LinkTapped"/>, then
+    /// show its page or open its address unless the app handled it. Returns whether there was a link.
+    /// </summary>
+    internal async Task<bool> FollowLinkAtAsync(double x, double y)
+    {
+        if (viewModel is not { } vm) return false;
+        PdfLinkTarget? target;
+        try
+        {
+            target = await vm.LinkAtAsync(x, y);
+        }
+        catch (Exception)
+        {
+            return false; // a document that cannot be read here has no usable links here
+        }
+        if (target is null || !ReferenceEquals(vm, viewModel)) return false;
+
+        var args = target switch
+        {
+            PdfPageLinkTarget page => new PdfLinkTappedEventArgs(page.OneBasedPageNumber, null),
+            PdfUriLinkTarget uri => new PdfLinkTappedEventArgs(null, uri.Uri),
+            _ => null,
+        };
+        if (args is null) return false;
+        LinkTapped?.Invoke(this, args);
+        if (args.Handled) return true;
+
+        if (target is PdfPageLinkTarget destination)
+        {
+            vm.GoTo(destination);
+            Announce($"Page {destination.OneBasedPageNumber} of {vm.PageCount}");
+        }
+        else if (args.Uri is { } address && Uri.TryCreate(address.Trim(), UriKind.Absolute, out var uri) &&
+                 OpenedSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase))
+        {
+            await OpenAsync(uri);
+        }
+        return true;
+    }
+
+    private static async Task OpenAsync(Uri uri)
+    {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+        try
+        {
+            await Launcher.Default.OpenAsync(uri);
+        }
+        catch (Exception)
+        {
+            // No browser or mail app; there is nothing more the viewer can do.
+        }
+#else
+        await Task.CompletedTask;
+#endif
     }
 
     /// <summary>Platform-specific input such as trackpad and mouse-wheel scrolling.</summary>
