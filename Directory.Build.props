@@ -1,0 +1,13 @@
+<Project>
+  <!-- Shared by the plugin, the samples and the tests. The fork's projects under external/Pdf use their own
+       Src/Directory.Build.Props (MSBuild stops at the nearest one). -->
+  <PropertyGroup>
+    <!-- Version of the Plugin.Maui.PDFViewer package. The release workflow passes the tag's version instead. -->
+    <PluginVersion Condition="'$(PluginVersion)' == ''">0.1.0-preview.1</PluginVersion>
+    <!-- net10.0 by default; -p:PluginTfm=net11.0 builds .NET 11 heads (after MAUI 11 ships). -->
+    <PluginTfm Condition="'$(PluginTfm)' == ''">net10.0</PluginTfm>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>

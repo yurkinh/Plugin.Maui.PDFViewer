@@ -1,0 +1,15 @@
+{
+  "sdk": {
+    "version": "11.0.100-rc.3.26522.148",
+    "allowPrerelease": true,
+    "rollForward": "latestFeature",
+    "paths": [
+      "external/Pdf/Src/.dotnet",
+      "$host$"
+    ],
+    "errorMessage": "Install the SDK with ./external/Pdf/Src/install-dotnet.sh (or a .NET 11 SDK system-wide)."
+  },
+  "test": {
+    "runner": "Microsoft.Testing.Platform"
+  }
+}

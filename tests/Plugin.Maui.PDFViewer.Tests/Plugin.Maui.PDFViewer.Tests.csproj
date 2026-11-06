@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Unit tests for the control on plain $(PluginTfm): the plugin's non-platform target. No device or emulator. -->
+    <PropertyGroup>
+        <TargetFramework>$(PluginTfm)</TargetFramework>
+        <IsPackable>false</IsPackable>
+        <OutputType>Exe</OutputType>
+        <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FluentAssertions" Version="[7.0.0]" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+        <PackageReference Include="xunit.v3" Version="3.2.2" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0-pre.4">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Plugin.Maui.PDFViewer\Plugin.Maui.PDFViewer.csproj" />
+        <ProjectReference Include="..\..\external\Pdf\Src\Melville.Pdf.ReferenceDocuments\Melville.Pdf.ReferenceDocuments.csproj" />
+    </ItemGroup>
+
+</Project>

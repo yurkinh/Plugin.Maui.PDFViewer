@@ -9,23 +9,33 @@ on:
     branches: [ "main" ]
 
 env:
-  DOTNET_VERSION: '9.0.x' # The .NET SDK version to use
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
   build-sample-ci:
-
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]   # Windows heads on Windows; iOS and Mac Catalyst heads on macOS
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v4
-    
+      with:
+        submodules: recursive
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
+        global-json-file: global.json
 
     - name: Install .NET MAUI Workload
-      run: dotnet workload restore samples\Plugin.Maui.Feature.Sample.sln
+      run: dotnet workload install maui
+
+    - name: Build Melville.StreamInterfaces into the fork's local feed
+      shell: bash
+      run: ./external/Pdf/build-local-packages.sh
 
     - name: Build
-      run: dotnet build samples\Plugin.Maui.Feature.Sample.sln -c Release
+      run: dotnet build samples/Plugin.Maui.PDFViewer.Sample.sln -c Release

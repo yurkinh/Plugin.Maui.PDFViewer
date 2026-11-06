@@ -9,7 +9,8 @@ on:
     branches: [ "main" ]
 
 env:
-  DOTNET_VERSION: '9.0.x' # The .NET SDK version to use
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
   build-plugin-ci:
@@ -18,14 +19,53 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    # The SDK from global.json (.NET 11, builds the net10.0 and net11.0 Melville libraries) plus the .NET 10 runtime
+    # for the net10.0 tests.
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        global-json-file: global.json
+        dotnet-version: 10.0.x
+
+    - name: Install .NET MAUI Workload
+      run: dotnet workload install maui
+
+    - name: Build Melville.StreamInterfaces into the fork's local feed
+      shell: bash
+      run: ./external/Pdf/build-local-packages.sh
+
+    - name: Build
+      run: dotnet build src\Plugin.Maui.PDFViewer.sln -c Release
+
+    - name: Test
+      run: dotnet test --project tests\Plugin.Maui.PDFViewer.Tests\Plugin.Maui.PDFViewer.Tests.csproj -c Release
+
+  # Native AOT with full trimming must publish without trim/AOT (IL) warnings (Mac Catalyst runs it locally).
+  native-aot-gate:
+
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
-    
-    - name: Install .NET MAUI Workload
-      run: dotnet workload restore samples\Plugin.Maui.Feature.Sample.sln
+        global-json-file: global.json
 
-    - name: Build
-      run: dotnet build src\Plugin.Maui.Feature.sln -c Release
+    - name: Install .NET MAUI Workload
+      run: dotnet workload install maui-maccatalyst
+
+    - name: Build Melville.StreamInterfaces into the fork's local feed
+      run: ./external/Pdf/build-local-packages.sh
+
+    - name: Native AOT publish of the test app, no IL warnings
+      run: |
+        dotnet publish samples/Plugin.Maui.PDFViewer.TestApp/Plugin.Maui.PDFViewer.TestApp.csproj -f net10.0-maccatalyst -c Release \
+          -p:RuntimeIdentifier=maccatalyst-arm64 -p:MelvilleNativeAot=true -p:CreatePackage=false | tee aot.log
+        if grep -E "warning IL[0-9]+" aot.log; then echo "::error::trim/AOT warnings"; exit 1; fi

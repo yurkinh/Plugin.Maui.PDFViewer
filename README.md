@@ -1,53 +1,181 @@
-# Plugin.Maui.Feature Template
+# Plugin.Maui.PDFViewer
 
-The `Plugin.Maui.Feature` repository is a template repository that can be used to bootstrap your own .NET MAUI plugin project. You can use this project structure as a blueprint for your own work.
+`PdfView` is a PDF viewer control for .NET MAUI. It runs on Android, iOS, Mac Catalyst and Windows.
 
-Learn how to get started with your plugin in this [YouTube video](https://www.youtube.com/watch?v=ZCQrlGT7MhI&list=PLfbOp004UaYVgzmTBNVI0ql2qF0LhSEU1&index=27).
+Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a PDF renderer written entirely in .NET, and drawn with Microsoft.Maui.Graphics. There are no native PDF libraries, so a page looks the same on every platform. The package is trim and Native AOT compatible.
 
-This template contains:
+> **Preview.** Version 0.1.0-preview.1. It is not on nuget.org yet; see [Building the package](#building-the-package).
 
-- A [sample .NET MAUI app](samples) where you can demonstrate how your plugin works and test your plugin with while developing
-- The [source](src) of the plugin
-- A boilerplate [README file](README_Feature.md) you can use (don't forget to rename to `README.md` and remove this one!)
-- [GitHub Actions for CI](.github/workflows) of the library and the sample app
-- [GitHub Action for releasing](.github/workflows) your package to NuGet
-- A [generic icon](nuget.png) for your project, feel free to adapt and be creative!
-- The [LICENSE](LICENSE) file with the MIT license. If you want this to be different, please change it. At the very least add your name in there!
+## Features
 
-## Getting Started
+- **Display modes:** one page at a time, or **continuous scroll** through all pages, vertically or horizontally. Only the pages near the view are rendered.
+- **Gestures:** pinch to zoom around your fingers, drag to pan, double-tap to switch between the whole page and 2×.
+- **Toolbar:** first, previous, next and last page; a page number box; zoom in and out; fit page; fit width; single page or continuous scroll; layers. Hide it with `ShowToolbar="False"` to use your own controls with the public commands.
+- **Layers:** optional content groups can be shown and hidden.
+- **Encrypted PDFs:** plug in your own `IPasswordSource` to supply passwords.
+- **Sources:** app package files, the file system, `FilePicker` results (including Android content URIs), byte arrays and streams.
+- **Saving the reading position:** the two-way `ViewState` holds the page, zoom and scroll, so you can save it when the app is backgrounded and restore it later.
+- **Accessibility:** screen reader announcements, named controls, 44 × 44 touch targets and desktop keyboard commands.
+- **Dark theme:** the area around the page follows the app theme; the page itself stays white.
+- **Fonts:** fonts are included for documents that don't embed theirs, since iOS and Android have no system font folder to fall back on. A separate CJK font package is available.
 
-1. Create your own GitHub repository from this one by clicking the "Use this template" button and then "Create a new repository". More information in the [documentation](https://docs.github.com/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template). After that, clone the repo to your local machine.
+## Getting started
 
-2. Replace all occurrences of `Plugin.Maui.Feature` with whatever your feature or functionality will be. For instance: `Plugin.Maui.ScreenBrightness` or `Plugin.Maui.Audio`. Of course the name can be anything, but to make it more discoverable it could be a great choice to stick to this naming scheme. You can easily do this with your favorite text-editor and do a replace all on all files.
+### 1. Install
 
-   2.1 Don't forget to also rename the files and folders on your filesystem.
+```
+dotnet add package Plugin.Maui.PDFViewer --prerelease
+```
 
-3. In the csproj file of the plugin project (under `src`), make sure that you replace all relevant values to your project. This means the author of this project, the description of the project, the target framework (.NET 7, 8 or something else). If you don't want to or can't support a certain platform, remove that target platform altogether.
+### 2. Register
 
-4. Delete this `README.md` file and rename `README_Feature.md` to `README.md`. Fill that README file with all the relevant details of your project.
+```csharp
+// MauiProgram.cs
+var builder = MauiApp.CreateBuilder();
+builder
+    .UseMauiApp<App>()
+    .UseMauiPdf();
+```
 
-5. Check the LICENSE file if this reflects the license that you want to distribute your project under. At the very least add your name there and the current year we live in.
+`UseMauiPdf(o => o.FontMapper = ...)` changes the fonts used for documents that do not embed theirs. For Chinese, Japanese or Korean documents, use `SelfContainedCjkFonts` from Melville.Pdf.FontLibrary.Cjk (about 90 MB).
 
-6. Create a nice icon in the `nuget.png` file that will show up on nuget.org and in the NuGet manager in Visual Studio.
+### 3. Show a PDF
 
-7. Write your plugin code (under `src`) and add samples to the .NET MAUI sample app (under `samples` folder)
+```xml
+<ContentPage xmlns:pdf="https://github.com/yurkinh/Plugin.Maui.PDFViewer" ...>
+    <pdf:PdfView Source="{Binding Source}"
+                 PageNumber="{Binding PageNumber}" />
+</ContentPage>
+```
 
-8. Make super sure that your package won't show up as `Plugin.Maui.Feature` on NuGet! If one does, you owe me a drink!
+```csharp
+Source = PdfSource.FromAppPackage("manual.pdf");          // Resources/Raw/manual.pdf
+Source = PdfSource.FromFileResult(await FilePicker.Default.PickAsync(...));
+Source = PdfSource.FromBytes(bytes);
+Source = PdfSource.FromStream(async ct => await http.GetStreamAsync(url, ct));
+```
 
-9. Publish your package to NuGet, a nice guide to do that can be found [here](https://learn.microsoft.com/nuget/nuget-org/publish-a-package). Also see [Publish to NuGet](#publish-to-nuget) below.
+Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfView />` with no prefix.
 
-10. Enjoy life as a .NET MAUI plugin author! ✨
+## API
 
-As an example of all of this you can have a look at:
+### Properties
 
-- [Plugin.Maui.Audio](https://github.com/jfversluis/Plugin.Maui.Audio)
-- [Plugin.Maui.Pedometer](https://github.com/jfversluis/Plugin.Maui.Pedometer)
-- [Plugin.Maui.ScreenBrightness](https://github.com/jfversluis/Plugin.Maui.ScreenBrightness)
+| Property | Type | | Description |
+|---|---|---|---|
+| `Source` | `PdfSource?` | | The document. Setting it closes the previous one. |
+| `PasswordSource` | `IPasswordSource?` | | Supplies passwords for encrypted documents. Set it before `Source`. |
+| `PageNumber` | `int` | two-way | The page shown, starting at 1. |
+| `PageCount` | `int` | read-only | The number of pages, or 0 when no document is open. |
+| `ZoomMode` | `ZoomMode` | two-way | `FitPage` (the default), `FitWidth`, or `Custom` after zooming. |
+| `DisplayMode` | `DisplayMode` | two-way | `SinglePage` (the default) or `Continuous`. The toolbar button switches between them. |
+| `ScrollOrientation` | `ScrollOrientation` | | In continuous mode: `Vertical` (the default) or `Horizontal`. This is MAUI's `ScrollView` enum; `Both` and `Neither` mean vertical. |
+| `ViewState` | `PdfViewState?` | two-way | The page, zoom mode, zoom and scroll. Set it before `Source` to open at a saved position. It works in both display modes. |
+| `IsLoading` | `bool` | read-only | True while a document is opening. |
+| `ErrorMessage` | `string?` | read-only | Why the document or the page could not be shown. |
+| `ShowToolbar` | `bool` | | Shows the built-in toolbar. The default is true. |
 
-## Publish to NuGet
+### Commands
 
-If you want to publish your package to NuGet, you totally can! Included in this template are a couple of GitHub Actions. One of them goes of when you create a new tag with this pattern: `v1.0.0` or `v1.0.0-preview1`. Obviously the `1.0.0` part can be determined by you as you see fit, as long as you follow the pattern of 3 integers separated by dots.
+`FirstPageCommand`, `PreviousPageCommand`, `NextPageCommand`, `LastPageCommand`, `ZoomInCommand`, `ZoomOutCommand`, `FitPageCommand` and `FitWidthCommand` are for your own toolbars, menus and keyboard shortcuts. Their `CanExecute` follows the open document, and `CanExecuteChanged` is raised on the UI thread.
 
-You will also want to set a secret for this repository which contains your NuGet API key. Follow the documentation on that [here](https://docs.github.com/actions/security-guides/encrypted-secrets#creating-encrypted-secrets-for-a-repository), and add a secret with the key `NUGET_API_KEY` and value of your NuGet API key. The API key should be authorized to push a NuGet package with the given identifier. 
+### Events
 
-From there, after [creating a GitHub release](https://docs.github.com/repositories/releasing-projects-on-github/managing-releases-in-a-repository) your plugin will be automatically released on NuGet!
+`DocumentLoaded` is raised once the first page is shown. `LoadFailed` is raised with the exception when a document cannot be opened. Both are raised on the UI thread.
+
+### Saving the reading position
+
+```csharp
+// Save when the window stops (and when it is destroyed: Android's back button can skip Stopped).
+Preferences.Set("position", JsonSerializer.Serialize(viewModel.ViewState, MyJsonContext.Default.PdfViewState));
+
+// Restore: set ViewState, then Source.
+viewModel.ViewState = saved;
+viewModel.Source = PdfSource.FromAppPackage("manual.pdf");
+```
+
+### Passwords
+
+```csharp
+public sealed class AskForPassword : IPasswordSource
+{
+    // Called on a worker thread, again after each wrong password. Return null to cancel opening.
+    public async ValueTask<(string?, PasswordType)> GetPasswordAsync() =>
+        (await MainThread.InvokeOnMainThreadAsync(ShowMaskedPromptAsync), PasswordType.User);
+}
+```
+
+`DisplayPromptAsync` cannot mask what is typed. The sample app has a small modal page that does.
+
+## Platform notes
+
+| Platform | Minimum | Notes |
+|---|---|---|
+| Android | API 21 (API 24 on .NET 11) | No permissions needed. `FilePicker` returns content URIs; `PdfSource.FromFileResult` reads them. |
+| iOS | 15.0 | |
+| Mac Catalyst | 17.0 | To open picked files in a sandboxed app, add `com.apple.security.files.user-selected.read-only`. Trackpad scrolling pans the page. |
+| Windows | 10.0.17763 | Built in CI, but not yet tested on a device. |
+
+## Performance
+
+A page is drawn once into a display list on a worker thread. The viewer then draws cached bitmaps: one for the whole page, plus one for the visible area when you zoom in a long way. It never replays the page on the UI thread, which matters most on iOS and Mac: CoreGraphics takes about 140 ms to fill a page of text, while drawing the cached bitmap takes 0.2 ms. A new page shows white until its bitmap is ready.
+
+These Release-build timings come from a simulator and an emulator, not real devices. To record a text page:
+
+| Platform | .NET 10 | .NET 11 |
+|---|---|---|
+| iOS simulator | 55 ms | 43 ms |
+| Android emulator | 132 ms | 60 ms |
+
+## Limitations
+
+- No text search or selection, annotations, form filling, link navigation or printing.
+- A screen reader hears "Page X of Y", not the page text.
+- Windows has not been tested on a device.
+
+## Repository layout
+
+This repository follows the [Plugin.Maui.Feature](https://github.com/jfversluis/Plugin.Maui.Feature) template.
+
+| Path | Contents |
+|---|---|
+| `src/Plugin.Maui.PDFViewer` | The plugin. Almost everything is shared, because pages are drawn with Maui.Graphics. The few platform files use the template's suffixes (`*.android.cs`, `*.macios.cs`). It also targets plain `net10.0`, for unit tests. |
+| `samples/Plugin.Maui.PDFViewer.Sample` | The sample to copy from: one page with a `PdfView`. |
+| `samples/Plugin.Maui.PDFViewer.TestApp` | A diagnostics app: a library of bundled PDFs, a gallery of about 240 reference documents, timings, a smoke test, and an unattended run (`MELVILLE_AUTORUN=1`). |
+| `tests/Plugin.Maui.PDFViewer.Tests` | Tests of the control, and of the bundled sample PDFs. |
+| `external/Pdf` | The Melville.Pdf renderer, a fork of [DrJohnMelville/Pdf](https://github.com/DrJohnMelville/Pdf), as a git submodule. |
+| `tools`, `pack-nuget.sh` | The sample corpus generator, packaging, and a check that the package works in a new app. |
+
+## Building
+
+```bash
+git clone --recursive https://github.com/yurkinh/Plugin.Maui.PDFViewer.git
+cd Plugin.Maui.PDFViewer
+./external/Pdf/Src/install-dotnet.sh         # the .NET 11 SDK global.json asks for, plus the .NET 10 runtime
+external/Pdf/Src/.dotnet/dotnet workload install maui
+./external/Pdf/build-local-packages.sh       # Melville.StreamInterfaces, from the fork's submodule
+external/Pdf/Src/.dotnet/dotnet build samples/Plugin.Maui.PDFViewer.Sample.sln
+external/Pdf/Src/.dotnet/dotnet test --project tests/Plugin.Maui.PDFViewer.Tests/Plugin.Maui.PDFViewer.Tests.csproj
+```
+
+## Building the package
+
+The package is not published. To build it locally:
+
+```bash
+./pack-nuget.sh                                         # writes artifacts/nuget/*.nupkg
+./tools/test-package-consumer.sh net10.0-android net10.0-ios
+```
+
+The second command checks the package the way an app developer would use it. It creates a new .NET MAUI app with the installed SDK, restores the package from `artifacts/nuget`, shows a PDF, and builds the app.
+
+The release workflow runs for tags like `v1.0.0` or `v1.0.0-preview1`, as in the template, but only when the repository variable `PUBLISH_NUGET` is `true`. Before the package can be published, one of these is needed:
+- upstream publishes Melville.Pdf packages with net10.0 assets;
+- this fork's libraries get their own package IDs;
+- the libraries are bundled into this package.
+
+The `Melville.*` IDs on nuget.org belong to the upstream author.
+
+## Credits and license
+
+MIT. Rendering is done by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf) by John Melville (MIT).
