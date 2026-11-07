@@ -20,7 +20,7 @@ Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a P
 - **Saving the reading position:** the two-way `ViewState` holds the page, zoom and scroll, so you can save it when the app is backgrounded and restore it later.
 - **Accessibility:** the page reads out its text when a screen reader focuses it, screen reader announcements, named controls, 44 × 44 touch targets and desktop keyboard commands.
 - **Dark theme:** the area around the page follows the app theme; the page itself stays white.
-- **Fonts:** fonts are included for documents that don't embed theirs, since iOS and Android have no system font folder to fall back on. A separate CJK font package is available.
+- **Fonts:** fonts are included for documents that don't embed theirs, since iOS and Android have no system font folder to fall back on.
 
 ## Getting started
 
@@ -40,7 +40,7 @@ builder
     .UseMauiPdf();
 ```
 
-`UseMauiPdf(o => o.FontMapper = ...)` changes the fonts used for documents that do not embed theirs. For Chinese, Japanese or Korean documents, use `SelfContainedCjkFonts` from Melville.Pdf.FontLibrary.Cjk (about 90 MB).
+`UseMauiPdf(o => o.FontMapper = ...)` changes the fonts used for documents that do not embed theirs. The included fonts cover Latin, Greek, Cyrillic and symbols. Chinese, Japanese and Korean documents need fonts embedded in the document, or your own `IDefaultFontMapper`.
 
 ### 3. Show a PDF
 
@@ -150,7 +150,7 @@ public sealed class AskForPassword : IPasswordSource
 | Android | API 21 (API 24 on .NET 11) | No permissions needed. `FilePicker` returns content URIs; `PdfSource.FromFileResult` reads them. |
 | iOS | 15.0 | |
 | Mac Catalyst | 17.0 | To open picked files in a sandboxed app, add `com.apple.security.files.user-selected.read-only`. Trackpad scrolling pans the page. |
-| Windows | 10.0.17763 | Built in CI, but not yet tested on a device. |
+| Windows | 10.0.17763 | The mouse wheel scrolls; Shift + wheel scrolls sideways and Ctrl + wheel zooms around the pointer. Built in CI, but not yet tested on a device. |
 
 ## Performance
 
@@ -202,22 +202,23 @@ external/Pdf/Src/.dotnet/dotnet test --project tests/Plugin.Maui.PDFViewer.Tests
 
 ## Building the package
 
-The package is not published. To build it locally:
-
 ```bash
-./pack-nuget.sh                                         # writes artifacts/nuget/*.nupkg
+./pack-nuget.sh                                         # writes artifacts/nuget/Plugin.Maui.PDFViewer.*.nupkg
 ./tools/test-package-consumer.sh net10.0-android net10.0-ios
 ```
 
-The second command checks the package the way an app developer would use it. It creates a new .NET MAUI app with the installed SDK, restores the package from `artifacts/nuget`, shows a PDF, and builds the app.
+The package is self-contained. The Melville.Pdf assemblies it uses are built from the fork in `external/Pdf` and bundled in its `lib` folders, for net10.0 (upstream's packages target net11.0 only, and the `Melville.*` IDs on nuget.org belong to the upstream author). Its dependencies are packages on nuget.org: Microsoft.Maui.Controls, CoreJ2K, Melville.Hacks, Melville.INPC and Melville.Linq. `pack-nuget.sh` fails if any target framework lacks a bundled assembly, if a dependency is something else, or if those versions drift from the fork's. CI packs on every push and uploads the package as a build artifact.
 
-The release workflow runs for tags like `v1.0.0` or `v1.0.0-preview1`, as in the template, but only when the repository variable `PUBLISH_NUGET` is `true`. Before the package can be published, one of these is needed:
-- upstream publishes Melville.Pdf packages with net10.0 assets;
-- this fork's libraries get their own package IDs;
-- the libraries are bundled into this package.
+Because the Melville assemblies are bundled, an app should not also reference upstream's Melville.Pdf packages: it would get two copies of the same assemblies.
 
-The `Melville.*` IDs on nuget.org belong to the upstream author.
+The second command checks the package the way an app developer would use it. It creates a new .NET MAUI app with the installed SDK, restores the package from `artifacts/nuget` into a fresh package folder, shows a PDF, and builds the app.
+
+To check that the Windows code compiles on macOS or Linux, add `-p:IncludeWindowsTfm=true -p:EnableWindowsTargeting=true` to a build of the plugin project. The compile succeeds; a later Windows-only packaging step (`makepri.exe`) fails there.
+
+### Releasing
+
+Push a tag like `v0.1.0-preview1` or `v1.0.0` on a commit that is on `main`. The release workflow packs with that version and pushes the package and its symbols to nuget.org. It runs only when the repository variable `PUBLISH_NUGET` is `true` and the secret `NUGET_API_KEY` is set.
 
 ## Credits and license
 
-MIT. Rendering is done by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf) by John Melville (MIT).
+MIT. Rendering is done by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf) by John Melville (MIT). The package also bundles code from JpegLibrary (MIT) and the Courier Prime, Linux Libertine, Roboto and Symbola fonts; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), which is included in the package.

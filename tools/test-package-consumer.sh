@@ -12,6 +12,8 @@ FRAMEWORKS=("${@:-net10.0-android}")
 DOTNET="${CONSUMER_DOTNET:-dotnet}"      # deliberately not the repository SDK: a consumer has a normal one
 WORK="$(mktemp -d)"; trap 'status=$?; rm -rf "$WORK"; exit $status' EXIT
 cd "$WORK"
+# Its own package folder: a package of the same version cached from an earlier pack must not stand in for this one.
+export NUGET_PACKAGES="$WORK/packages"
 
 "$DOTNET" new maui -n PdfConsumer -o . >/dev/null
 cat > nuget.config <<XML

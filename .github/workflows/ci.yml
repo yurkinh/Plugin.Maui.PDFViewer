@@ -43,6 +43,18 @@ jobs:
     - name: Test
       run: dotnet test --project tests\Plugin.Maui.PDFViewer.Tests\Plugin.Maui.PDFViewer.Tests.csproj -c Release
 
+    # The package as it would be released (Windows has every target framework): one package with the Melville
+    # assemblies bundled; pack-nuget.sh fails if a target framework lacks them or a dependency is not on nuget.org.
+    - name: Pack
+      shell: bash
+      run: ./pack-nuget.sh
+
+    - name: Upload package
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-package
+        path: artifacts/nuget/Plugin.Maui.PDFViewer.*
+
   # Native AOT with full trimming must publish without trim/AOT (IL) warnings (Mac Catalyst runs it locally).
   native-aot-gate:
 

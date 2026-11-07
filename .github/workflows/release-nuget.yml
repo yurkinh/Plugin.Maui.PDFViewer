@@ -1,11 +1,9 @@
 name: Create a (Pre)release on NuGet
 
 # Runs for tags like v1.0.0 or v1.0.0-preview1 (as in the Plugin.Maui.Feature template), but only when the
-# repository variable PUBLISH_NUGET is 'true'; it also needs the secret NUGET_API_KEY.
-#
-# Not usable yet: Plugin.Maui.PDFViewer depends on this fork's builds of the Melville.Pdf libraries, and the
-# Melville.* package IDs on nuget.org belong to the upstream author. Before a release, upstream must publish packages
-# with net10.0 assets, or the libraries need their own IDs, or they must be bundled into this package.
+# repository variable PUBLISH_NUGET is 'true'; it also needs the secret NUGET_API_KEY. The tagged commit must be on
+# main. It publishes one package, Plugin.Maui.PDFViewer, with the Melville.Pdf assemblies bundled (see pack-nuget.sh),
+# and its symbols package.
 
 on:
   push:
@@ -50,6 +48,7 @@ jobs:
       - name: Push
         shell: bash
         run: |
-          for package in artifacts/nuget/*.nupkg; do
-            dotnet nuget push "$package" -s https://api.nuget.org/v3/index.json -k "${{ secrets.NUGET_API_KEY }}" --skip-duplicate
-          done
+          # Only the plugin: artifacts/nuget can also hold the fork's local Melville.Streams packages, which are not ours
+          # to publish. The .snupkg next to it is pushed with it.
+          dotnet nuget push artifacts/nuget/Plugin.Maui.PDFViewer.*.nupkg -s https://api.nuget.org/v3/index.json \
+            -k "${{ secrets.NUGET_API_KEY }}" --skip-duplicate

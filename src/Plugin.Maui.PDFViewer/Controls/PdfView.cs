@@ -871,6 +871,9 @@ public partial class PdfView : ContentView
     /// <summary>Scroll the page by a wheel or trackpad delta, in view units (used by platform input).</summary>
     internal void ScrollBy(double dx, double dy) => viewModel?.PanBy(dx, dy);
 
+    /// <summary>Zoom by a factor around a point of the page view (used by platform input such as Ctrl + wheel).</summary>
+    internal void ZoomBy(double factor, double x, double y) => viewModel?.ZoomAt(factor, x, y);
+
     // ---- Toolbar and layers -----------------------------------------------------------------------------------
 
     private View CreateToolbar()

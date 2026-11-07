@@ -4,7 +4,9 @@
 		     control. Everything is drawn with Maui.Graphics, so almost all code is shared; the few platform files use
 		     the template's file suffixes (*.android.cs, *.macios.cs, *.windows.cs, *.net.cs). -->
 		<TargetFrameworks>$(PluginTfm)-android;$(PluginTfm)-ios;$(PluginTfm)-maccatalyst;$(PluginTfm)</TargetFrameworks>
-		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);$(PluginTfm)-windows10.0.19041.0</TargetFrameworks>
+		<!-- -p:IncludeWindowsTfm=true -p:EnableWindowsTargeting=true compiles the Windows target on macOS or Linux, to
+		     check it compiles (it cannot run there). -->
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows')) Or '$(IncludeWindowsTfm)' == 'true'">$(TargetFrameworks);$(PluginTfm)-windows10.0.19041.0</TargetFrameworks>
 		<SingleProject>true</SingleProject>
 		<UseMaui>true</UseMaui>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -77,10 +79,50 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- The Melville.Pdf renderer, from the fork in the external/Pdf submodule. -->
-		<ProjectReference Include="..\..\external\Pdf\Src\Melville.Pdf.FontLibrary\Melville.Pdf.FontLibrary.csproj" />
-		<ProjectReference Include="..\..\external\Pdf\Src\Melville.Pdf.MauiGraphics\Melville.Pdf.MauiGraphics.csproj" />
+		<!-- The Melville.Pdf renderer, from the fork in the external/Pdf submodule. When packing, they are private: the
+		     package carries their assemblies itself (see BundleMelvilleAssemblies), because the Melville.* IDs on
+		     nuget.org belong to the upstream author and upstream's packages target net11.0 only. Within this repository
+		     the references flow as usual, so tests and samples see the Melville types. -->
+		<ProjectReference Include="..\..\external\Pdf\Src\Melville.Pdf.FontLibrary\Melville.Pdf.FontLibrary.csproj" PrivateAssets="$(MelvilleBundlePrivateAssets)" />
+		<ProjectReference Include="..\..\external\Pdf\Src\Melville.Pdf.MauiGraphics\Melville.Pdf.MauiGraphics.csproj" PrivateAssets="$(MelvilleBundlePrivateAssets)" />
 	</ItemGroup>
+
+	<!-- Packing (pack-nuget.sh passes -p:BundleMelville=true): one package with every Melville assembly in lib/<tfm>. -->
+	<PropertyGroup Condition="'$(BundleMelville)' == 'true'">
+		<MelvilleBundlePrivateAssets>all</MelvilleBundlePrivateAssets>
+		<TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);BundleMelvilleAssemblies</TargetsForTfmSpecificBuildOutput>
+		<TargetsForTfmSpecificDebugSymbolsInPackage>$(TargetsForTfmSpecificDebugSymbolsInPackage);BundleMelvilleSymbols</TargetsForTfmSpecificDebugSymbolsInPackage>
+	</PropertyGroup>
+
+	<!-- Private references hide the Melville projects' own package dependencies too, so they are restated here. These
+	     are on nuget.org; keep the versions in step with external/Pdf/Src/Directory.Packages.props (pack-nuget.sh
+	     checks). Melville.StreamInterfaces and Melville.IntersectionTypes are not on nuget.org: they are bundled. -->
+	<ItemGroup Condition="'$(BundleMelville)' == 'true'">
+		<PackageReference Include="CoreJ2K" Version="2.3.3.91" />
+		<PackageReference Include="Melville.Hacks" Version="0.8.5" />
+		<PackageReference Include="Melville.INPC" Version="0.8.5" />
+		<PackageReference Include="Melville.Linq" Version="0.8.5" />
+		<!-- Microsoft.Maui.Graphics comes with Microsoft.Maui.Controls. -->
+	</ItemGroup>
+
+	<Target Name="CollectMelvilleAssemblies" DependsOnTargets="ResolveReferences">
+		<ItemGroup>
+			<_MelvilleBundled Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ProjectReference' Or '%(ReferencePath.NuGetPackageId)' == 'Melville.StreamInterfaces' Or '%(ReferencePath.NuGetPackageId)' == 'Melville.IntersectionTypes'" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="BundleMelvilleAssemblies" DependsOnTargets="CollectMelvilleAssemblies">
+		<ItemGroup>
+			<BuildOutputInPackage Include="@(_MelvilleBundled)" />
+			<BuildOutputInPackage Include="@(_MelvilleBundled->'%(RootDir)%(Directory)%(Filename).xml')" Condition="Exists('%(RootDir)%(Directory)%(Filename).xml')" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="BundleMelvilleSymbols" DependsOnTargets="CollectMelvilleAssemblies">
+		<ItemGroup>
+			<DebugSymbolsProjectOutputGroupOutput Include="@(_MelvilleBundled->'%(RootDir)%(Directory)%(Filename).pdb')" Condition="Exists('%(RootDir)%(Directory)%(Filename).pdb')" TargetPath="%(Filename).pdb" />
+		</ItemGroup>
+	</Target>
 
 	<ItemGroup>
 		<InternalsVisibleTo Include="Plugin.Maui.PDFViewer.Tests" />
@@ -94,6 +136,7 @@
 	<ItemGroup>
 		<None Include="..\..\nuget.png" PackagePath="icon.png" Pack="true" />
 		<None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+		<None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\"/>
 	</ItemGroup>
 
 </Project>
