@@ -43,4 +43,6 @@ public partial class ViewerPage : ContentPage
         if (args.NavigationType is NavigationType.Pop or NavigationType.PopToRoot) viewModel.Close();
         else viewModel.SavePosition();
     }
+
+    private void OnFindClicked(object? sender, EventArgs e) => Viewer.IsSearchVisible = true;
 }

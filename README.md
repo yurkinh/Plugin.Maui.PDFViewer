@@ -13,11 +13,12 @@ Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a P
 - **Toolbar:** first, previous, next and last page; a page number box; zoom in and out; fit page; fit width; single page or continuous scroll; find; layers. Hide it with `ShowToolbar="False"` to use your own controls with the public commands.
 - **Links:** tap a link to go to the page it points to, at the position it names. Web and mail links open in the browser or mail app. The `LinkTapped` event lets the app handle links itself.
 - **Search:** the Find button opens a find bar. Matches are highlighted on every page, the current one in orange, and the previous and next buttons step through them. Search starts at the current page and shows its progress.
+- **Selecting and copying text:** press and hold on a word to select it, then drag without lifting your finger to select more. A bar offers Copy and Select page, and a tap clears the selection.
 - **Layers:** optional content groups can be shown and hidden.
 - **Encrypted PDFs:** plug in your own `IPasswordSource` to supply passwords.
 - **Sources:** app package files, the file system, `FilePicker` results (including Android content URIs), byte arrays and streams.
 - **Saving the reading position:** the two-way `ViewState` holds the page, zoom and scroll, so you can save it when the app is backgrounded and restore it later.
-- **Accessibility:** screen reader announcements, named controls, 44 × 44 touch targets and desktop keyboard commands.
+- **Accessibility:** the page reads out its text when a screen reader focuses it, screen reader announcements, named controls, 44 × 44 touch targets and desktop keyboard commands.
 - **Dark theme:** the area around the page follows the app theme; the page itself stays white.
 - **Fonts:** fonts are included for documents that don't embed theirs, since iOS and Android have no system font folder to fall back on. A separate CJK font package is available.
 
@@ -80,10 +81,11 @@ Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfVi
 | `SearchResultCount` | `int` | read-only | The matches found so far. |
 | `CurrentSearchResult` | `int` | read-only | The match shown, counting from 1; 0 when there is none. |
 | `IsSearching` | `bool` | read-only | True while a search is still reading pages. |
+| `SelectedText` | `string?` | read-only | The selected text, with spaces between words and line breaks between lines, or null. |
 
 ### Commands
 
-`FirstPageCommand`, `PreviousPageCommand`, `NextPageCommand`, `LastPageCommand`, `ZoomInCommand`, `ZoomOutCommand`, `FitPageCommand`, `FitWidthCommand`, `NextSearchResultCommand` and `PreviousSearchResultCommand` are for your own toolbars, menus and keyboard shortcuts. Their `CanExecute` follows the open document, and `CanExecuteChanged` is raised on the UI thread.
+`FirstPageCommand`, `PreviousPageCommand`, `NextPageCommand`, `LastPageCommand`, `ZoomInCommand`, `ZoomOutCommand`, `FitPageCommand`, `FitWidthCommand`, `NextSearchResultCommand`, `PreviousSearchResultCommand`, `CopySelectionCommand` and `SelectAllCommand` (the current page) are for your own toolbars, menus and keyboard shortcuts. Their `CanExecute` follows the open document, and `CanExecuteChanged` is raised on the UI thread.
 
 ### Methods
 
@@ -93,6 +95,8 @@ Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfVi
 var count = await pdfView.SearchAsync("optional content");
 if (count > 0) pdfView.NextSearchResultCommand.Execute(null);
 ```
+
+`ClearSelection()` selects nothing.
 
 `GetPageTextAsync(pageNumber)` returns the text of a page, with spaces between words and line breaks between lines, for copying, sharing or reading aloud. A scanned page without recognised text has none.
 
@@ -163,11 +167,12 @@ Search reads each page's text with a pass like rendering that draws nothing. Tha
 
 ## Limitations
 
-- No text selection, annotation editing, form filling or printing.
+- No annotation editing, form filling or printing.
+- A selection stays on one page, and has no handles to adjust it after you lift your finger. On desktop you also press and hold, because a mouse drag scrolls.
 - Search does not join words hyphenated at the end of a line, and matches text in the order it is drawn, which for some documents is not reading order.
 - No "back" after following a link, and no pointer cursor over links on desktop.
 - Links can't be reached with a screen reader yet.
-- A screen reader hears "Page X of Y", not the page text.
+- A screen reader reads the page's text in one go; it can't move through it line by line.
 - Windows has not been tested on a device.
 
 ## Repository layout

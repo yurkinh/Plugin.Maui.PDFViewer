@@ -33,6 +33,11 @@ internal sealed class PdfPageDrawable : IDrawable
     public Color MatchHighlight { get; set; } = Color.FromRgba(255, 214, 0, 90);
     public Color CurrentMatchHighlight { get; set; } = Color.FromRgba(255, 120, 0, 128);
 
+    /// <summary>The selected text, highlighted on its page.</summary>
+    public TextSelection? Selection { get; set; }
+
+    public Color SelectionHighlight { get; set; } = Color.FromRgba(0, 120, 215, 80);
+
     /// <summary>Bitmaps by page number. A bitmap whose display list is not the page's current one is ignored.</summary>
     public Dictionary<int, PageBitmaps> Bitmaps { get; } = [];
 
@@ -61,20 +66,25 @@ internal sealed class PdfPageDrawable : IDrawable
         if (placement.Layout.Scale <= 0) return;
         DrawContent(canvas, placement);
         DrawMatches(canvas, placement);
+        if (Selection is { } selected && selected.Page == placement.Page)
+            DrawAreas(canvas, placement.Layout, selected.Areas, SelectionHighlight);
+    }
+
+    private static void DrawAreas(ICanvas canvas, PageLayout layout, IReadOnlyList<PageRect> areas, Color color)
+    {
+        var scale = (float)layout.Scale;
+        canvas.FillColor = color;
+        foreach (var area in areas)
+            canvas.FillRectangle((float)(layout.OffsetX + area.X * scale), (float)(layout.OffsetY + area.Y * scale),
+                (float)area.Width * scale, (float)area.Height * scale);
     }
 
     private void DrawMatches(ICanvas canvas, PagePlacement<PdfDisplayList> placement)
     {
         if (Matches?.Invoke(placement.Page) is not { Count: > 0 } matches) return;
-        var layout = placement.Layout;
-        var scale = (float)layout.Scale;
         foreach (var match in matches)
-        {
-            canvas.FillColor = ReferenceEquals(match, CurrentMatch) ? CurrentMatchHighlight : MatchHighlight;
-            foreach (var area in match.Areas)
-                canvas.FillRectangle((float)(layout.OffsetX + area.X * scale), (float)(layout.OffsetY + area.Y * scale),
-                    (float)area.Width * scale, (float)area.Height * scale);
-        }
+            DrawAreas(canvas, placement.Layout, match.Areas,
+                ReferenceEquals(match, CurrentMatch) ? CurrentMatchHighlight : MatchHighlight);
     }
 
     private void DrawContent(ICanvas canvas, PagePlacement<PdfDisplayList> placement)

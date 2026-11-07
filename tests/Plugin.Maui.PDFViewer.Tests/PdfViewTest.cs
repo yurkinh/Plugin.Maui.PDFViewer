@@ -4,6 +4,7 @@ using Melville.Pdf.Model.Creators;
 using Melville.Pdf.ReferenceDocuments.PageProperties;
 using Melville.Pdf.ViewerModel;
 using Microsoft.Maui;
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Dispatching;
 using Xunit;
@@ -272,6 +273,49 @@ public class PdfViewTest : IAsyncLifetime
         sut.SearchResultCount.Should().Be(0);
         sut.CurrentSearchResult.Should().Be(0);
         sut.NextSearchResultCommand.CanExecute(null).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PressingAWordSelectsItForCopying()
+    {
+        var sut = await OpenLinksAsync();
+        sut.CopySelectionCommand.CanExecute(null).Should().BeFalse();
+
+        (await sut.SelectWordAtAsync(45, 45)).Should().BeTrue(); // "Links", the title
+
+        sut.SelectedText.Should().Be("Links");
+        sut.CopySelectionCommand.CanExecute(null).Should().BeTrue();
+        sut.ClearSelection();
+        sut.SelectedText.Should().BeNull();
+        sut.CopySelectionCommand.CanExecute(null).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SelectAllTakesTheCurrentPage()
+    {
+        var sut = await OpenLinksAsync();
+
+        sut.SelectAllCommand.Execute(null);
+        for (int i = 0; i < 50 && sut.SelectedText is null; i++) await Task.Delay(20);
+
+        sut.SelectedText.Should().Be(await sut.GetPageTextAsync(1));
+    }
+
+    [Fact]
+    public async Task ScreenReadersHearThePageText()
+    {
+        var sut = await OpenLinksAsync();
+        var page = sut.GetVisualTreeDescendants().OfType<GraphicsView>().Single();
+
+        string? description = null;
+        for (int i = 0; i < 50; i++)
+        {
+            description = SemanticProperties.GetDescription(page);
+            if (description?.Contains("Links") == true) break;
+            await Task.Delay(20);
+        }
+
+        description.Should().StartWith("Page 1 of 4. Links Page 3, at the line marked 400");
     }
 
     [Fact]

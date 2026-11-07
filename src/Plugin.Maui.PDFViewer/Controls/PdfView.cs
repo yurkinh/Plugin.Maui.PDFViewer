@@ -225,6 +225,27 @@ public partial class PdfView : ContentView
     /// <summary>Remove the search highlights; a search still reading pages stops.</summary>
     public void ClearSearch() => viewModel?.ClearSearch();
 
+    private static readonly BindablePropertyKey SelectedTextKey = BindableProperty.CreateReadOnly(
+        nameof(SelectedText), typeof(string), typeof(PdfView), null);
+
+    /// <summary>
+    /// The selected text, with spaces between words and line breaks between lines, or null. The user selects by
+    /// pressing and holding on a word, then dragging without lifting the finger; a tap clears the selection.
+    /// </summary>
+    public static readonly BindableProperty SelectedTextProperty = SelectedTextKey.BindableProperty;
+
+    /// <inheritdoc cref="SelectedTextProperty"/>
+    public string? SelectedText { get => (string?)GetValue(SelectedTextProperty); private set => SetValue(SelectedTextKey, value); }
+
+    /// <summary>Copy the selected text to the clipboard.</summary>
+    public ICommand CopySelectionCommand { get; }
+
+    /// <summary>Select all the text of the current page.</summary>
+    public ICommand SelectAllCommand { get; }
+
+    /// <summary>Select nothing.</summary>
+    public void ClearSelection() => viewModel?.ClearSelection();
+
     /// <summary>Raised on the UI thread when a document has opened and its first page is shown.</summary>
     public event EventHandler? DocumentLoaded;
 
@@ -266,6 +287,8 @@ public partial class PdfView : ContentView
         FitWidthCommand = Forward(vm => vm.FitWidthCommand);
         NextSearchResultCommand = Forward(vm => vm.NextMatchCommand);
         PreviousSearchResultCommand = Forward(vm => vm.PreviousMatchCommand);
+        SelectAllCommand = Forward(vm => vm.SelectAllCommand);
+        CopySelectionCommand = new Command(async () => await CopySelectionAsync(), () => SelectedText is not null);
 
         pageView = new GraphicsView { Drawable = drawable, AutomationId = "PdfView.Page" };
         SemanticProperties.SetDescription(pageView, "No document");
@@ -287,7 +310,7 @@ public partial class PdfView : ContentView
         // Dark red is unreadable on the dark-theme background.
         error.SetAppThemeColor(Label.TextColorProperty, Colors.DarkRed, Color.FromArgb("#FF8A80"));
 
-        var content = new Grid { Children = { pageView, spinner, error, CreateLayersPanel() } };
+        var content = new Grid { Children = { pageView, spinner, error, CreateSelectionBar(), CreateLayersPanel() } };
         var toolbar = CreateToolbar();
         toolbar.SetBinding(IsVisibleProperty, static (PdfView v) => v.ShowToolbar, source: this);
         body = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star)] };
@@ -431,6 +454,8 @@ public partial class PdfView : ContentView
         drawable.Placements = [];
         drawable.Matches = null;
         drawable.CurrentMatch = null;
+        UpdateSelection(null);
+        describedPage = 0;
         UpdateSearchState(null);
         pageView.Invalidate();
         await old.DisposeAsync();
@@ -453,6 +478,9 @@ public partial class PdfView : ContentView
             case nameof(ViewModel.ViewState):
                 Dispatcher.Dispatch(PublishViewState);
                 break;
+            case nameof(ViewModel.Selection):
+                Dispatcher.Dispatch(() => { if (ReferenceEquals(sender, viewModel)) UpdateSelection(viewModel!.Selection); });
+                break;
             case nameof(ViewModel.SearchMatches) or nameof(ViewModel.CurrentMatchIndex) or nameof(ViewModel.IsSearching)
                 or nameof(ViewModel.SearchedPages):
                 Dispatcher.Dispatch(() => { if (ReferenceEquals(sender, viewModel)) UpdateSearchState(viewModel); });
@@ -467,9 +495,8 @@ public partial class PdfView : ContentView
         {
             if (viewModel is not { } vm) return;
             PageNumber = vm.PageSelector.Page;
-            var description = $"Page {vm.PageSelector.Page} of {vm.PageCount}";
-            SemanticProperties.SetDescription(pageView, description);
-            Announce(description);
+            Announce($"Page {vm.PageSelector.Page} of {vm.PageCount}");
+            DescribePage(vm);
         });
     }
 
@@ -570,7 +597,7 @@ public partial class PdfView : ContentView
             if (!hasBitmap && placement.Rendered is not null) newContent = true;
         }
         drawable.Placements = placements;
-        SemanticProperties.SetDescription(pageView, $"Page {vm.PageSelector.Page} of {vm.PageCount}");
+        DescribePage(vm);
         pageView.Invalidate();
         ScheduleBitmap(immediate: newContent);
     }
@@ -705,6 +732,7 @@ public partial class PdfView : ContentView
         pinch.PinchUpdated += (_, e) =>
         {
             // Scale is the change since the previous update; ScaleOrigin is relative to the view's size.
+            if (e.Status == GestureStatus.Started) CancelPress();
             if (e.Status == GestureStatus.Running)
                 viewModel?.ZoomAt(e.Scale, e.ScaleOrigin.X * view.Width, e.ScaleOrigin.Y * view.Height);
         };
@@ -716,10 +744,18 @@ public partial class PdfView : ContentView
             {
                 case GestureStatus.Started:
                     panX = panY = 0;
+                    if (!selectingByDrag) CancelPress(); // moving before the hold ends is a pan
+                    break;
+                case GestureStatus.Running when selectingByDrag:
+                    // The finger that pressed and held now drags the end of the selection.
+                    _ = viewModel?.ExtendSelectionToAsync(pressPoint.X + e.TotalX, pressPoint.Y + e.TotalY);
                     break;
                 case GestureStatus.Running:
                     viewModel?.PanBy(e.TotalX - panX, e.TotalY - panY);
                     (panX, panY) = (e.TotalX, e.TotalY);
+                    break;
+                case GestureStatus.Completed or GestureStatus.Canceled:
+                    selectingByDrag = false;
                     break;
             }
         };
@@ -737,13 +773,33 @@ public partial class PdfView : ContentView
         var tap = new TapGestureRecognizer();
         tap.Tapped += async (_, e) =>
         {
-            if (e.GetPosition(view) is { } point) await FollowLinkAtAsync(point.X, point.Y);
+            if (suppressTap)
+            {
+                suppressTap = false; // the end of a press and hold
+                return;
+            }
+            if (e.GetPosition(view) is { } point && await FollowLinkAtAsync(point.X, point.Y)) return;
+            viewModel?.ClearSelection();
+        };
+
+        // Press and hold selects; MAUI has no long-press recognizer, so a pointer press starts a timer that a
+        // release, a pan or a pinch cancels.
+        var pointer = new PointerGestureRecognizer();
+        pointer.PointerPressed += (_, e) =>
+        {
+            if (e.GetPosition(view) is { } point) StartPress(point);
+        };
+        pointer.PointerReleased += (_, _) =>
+        {
+            CancelPress();
+            selectingByDrag = false;
         };
 
         view.GestureRecognizers.Add(pinch);
         view.GestureRecognizers.Add(pan);
         view.GestureRecognizers.Add(doubleTap);
         view.GestureRecognizers.Add(tap);
+        view.GestureRecognizers.Add(pointer);
     }
 
     // ---- Links ------------------------------------------------------------------------------------------------
@@ -895,6 +951,134 @@ public partial class PdfView : ContentView
             Padding = new Thickness(4),
             Children = { first, previous, page, count, next, last, zoomOut, zoomIn, fitPage, fitWidth, displayModeButton, find, layers },
         };
+    }
+
+    // ---- Selection ----------------------------------------------------------------------------------------------
+
+    private const int LongPressMs = 500;
+    private Point pressPoint;
+    private int pressVersion;
+    private bool selectingByDrag;
+    private bool suppressTap;
+    private Border selectionBar = null!;
+
+    private async void StartPress(Point point)
+    {
+        pressPoint = point;
+        var version = ++pressVersion;
+        suppressTap = false;
+        await Task.Delay(LongPressMs);
+        if (version != pressVersion || viewModel is not { } vm) return;
+        await SelectWordAtAsync(point.X, point.Y);
+        if (version != pressVersion || vm.Selection is null) return;
+        selectingByDrag = true;
+        suppressTap = true;
+        Vibrate();
+    }
+
+    private void CancelPress() => pressVersion++;
+
+    /// <summary>Select the word under a point of the page view, as a press and hold does.</summary>
+    internal async Task<bool> SelectWordAtAsync(double x, double y)
+    {
+        if (viewModel is not { } vm) return false;
+        try
+        {
+            return await vm.SelectWordAtAsync(x, y);
+        }
+        catch (Exception)
+        {
+            return false; // a page whose text cannot be read has nothing to select
+        }
+    }
+
+    private static void Vibrate()
+    {
+#if ANDROID || IOS
+        try { HapticFeedback.Default.Perform(HapticFeedbackType.LongPress); }
+        catch (Exception) { } // no haptics, or no permission
+#endif
+    }
+
+    private async Task CopySelectionAsync()
+    {
+        if (SelectedText is not { } text) return;
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+        await Clipboard.Default.SetTextAsync(text);
+#else
+        await Task.CompletedTask;
+#endif
+        Announce("Copied");
+    }
+
+    private View CreateSelectionBar()
+    {
+        static Button BarButton(string text, string description, string id)
+        {
+            var button = new Button
+            {
+                Text = text, Padding = new Thickness(10, 4), MinimumWidthRequest = 44, MinimumHeightRequest = 44,
+                AutomationId = "PdfView." + id,
+            };
+            SemanticProperties.SetDescription(button, description);
+            return button;
+        }
+
+        var copy = BarButton("Copy", "Copy the selected text", "Copy");
+        copy.Command = CopySelectionCommand;
+        var page = BarButton("Select page", "Select all the text on this page", "SelectPage");
+        page.Command = SelectAllCommand;
+        var close = BarButton("✕", "Clear the selection", "ClearSelection");
+        close.Clicked += (_, _) => ClearSelection();
+
+        selectionBar = new Border
+        {
+            IsVisible = false, Padding = 4, Margin = 8, StrokeThickness = 0,
+            HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Start,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+            Shadow = new Shadow { Opacity = 0.3f, Radius = 8, Offset = new Point(0, 2) },
+            Content = new HorizontalStackLayout { Spacing = 4, Children = { copy, page, close } },
+        };
+        selectionBar.SetAppThemeColor(BackgroundColorProperty, Colors.White, Color.FromArgb("#2D2D2D"));
+        return selectionBar;
+    }
+
+    private void UpdateSelection(TextSelection? selection)
+    {
+        var hadSelection = SelectedText is not null;
+        SelectedText = selection?.Text;
+        drawable.Selection = selection;
+        selectionBar.IsVisible = selection is not null;
+        ((Command)CopySelectionCommand).ChangeCanExecute();
+        pageView.Invalidate();
+        if (selection is not null && !hadSelection) Announce("Text selected");
+    }
+
+    // ---- Page text for screen readers ---------------------------------------------------------------------------
+
+    private int describedPage;
+
+    // The page view's description is the page number followed by the page's text, so a screen reader that focuses
+    // the page reads what is on it. The text is read once per page shown.
+    private async void DescribePage(ViewModel vm)
+    {
+        var page = vm.PageSelector.Page;
+        if (page == describedPage) return;
+        describedPage = page;
+        var heading = $"Page {page} of {vm.PageCount}";
+        SemanticProperties.SetDescription(pageView, heading);
+        string text;
+        try
+        {
+            text = (await vm.GetTextAsync(page)).Text;
+        }
+        catch (Exception)
+        {
+            return;
+        }
+        if (!ReferenceEquals(vm, viewModel) || describedPage != page) return;
+        SemanticProperties.SetDescription(pageView,
+            text.Length == 0 ? $"{heading}. No text on this page." : $"{heading}. {text.Replace('\n', ' ')}");
     }
 
     // ---- Search ------------------------------------------------------------------------------------------------
