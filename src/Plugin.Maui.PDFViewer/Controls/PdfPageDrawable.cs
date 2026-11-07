@@ -22,6 +22,17 @@ internal sealed class PdfPageDrawable : IDrawable
     public Color Background { get; set; } = Colors.LightGray;
     public Color Shadow { get; set; } = Color.FromRgba(0, 0, 0, 0.25f);
 
+    /// <summary>The search matches on a page, to highlight; null when nothing is searched.</summary>
+    public Func<int, IReadOnlyList<SearchMatch>>? Matches { get; set; }
+
+    /// <summary>The match being shown: highlighted more strongly than the others.</summary>
+    public SearchMatch? CurrentMatch { get; set; }
+
+    // Translucent, so the text under a highlight stays readable. (All-int arguments: with a float alpha, C# picks
+    // the all-float overload and clamps 255 and 120 to 1.)
+    public Color MatchHighlight { get; set; } = Color.FromRgba(255, 214, 0, 90);
+    public Color CurrentMatchHighlight { get; set; } = Color.FromRgba(255, 120, 0, 128);
+
     /// <summary>Bitmaps by page number. A bitmap whose display list is not the page's current one is ignored.</summary>
     public Dictionary<int, PageBitmaps> Bitmaps { get; } = [];
 
@@ -47,8 +58,28 @@ internal sealed class PdfPageDrawable : IDrawable
 
     private void DrawPage(ICanvas canvas, PagePlacement<PdfDisplayList> placement)
     {
+        if (placement.Layout.Scale <= 0) return;
+        DrawContent(canvas, placement);
+        DrawMatches(canvas, placement);
+    }
+
+    private void DrawMatches(ICanvas canvas, PagePlacement<PdfDisplayList> placement)
+    {
+        if (Matches?.Invoke(placement.Page) is not { Count: > 0 } matches) return;
         var layout = placement.Layout;
-        if (layout.Scale <= 0) return;
+        var scale = (float)layout.Scale;
+        foreach (var match in matches)
+        {
+            canvas.FillColor = ReferenceEquals(match, CurrentMatch) ? CurrentMatchHighlight : MatchHighlight;
+            foreach (var area in match.Areas)
+                canvas.FillRectangle((float)(layout.OffsetX + area.X * scale), (float)(layout.OffsetY + area.Y * scale),
+                    (float)area.Width * scale, (float)area.Height * scale);
+        }
+    }
+
+    private void DrawContent(ICanvas canvas, PagePlacement<PdfDisplayList> placement)
+    {
+        var layout = placement.Layout;
         float x = (float)layout.OffsetX, y = (float)layout.OffsetY;
         float width = (float)layout.ContentWidth, height = (float)layout.ContentHeight;
         canvas.FillColor = Shadow;

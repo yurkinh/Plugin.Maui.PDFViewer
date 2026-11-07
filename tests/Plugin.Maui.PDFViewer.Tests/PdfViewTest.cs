@@ -238,6 +238,52 @@ public class PdfViewTest : IAsyncLifetime
         (await NewView().GetPageTextAsync(1)).Should().BeEmpty("no document is open");
     }
 
+    [Fact]
+    public async Task SearchingFindsMatchesOnEveryPageAndStepsThroughThem()
+    {
+        var sut = await OpenLinksAsync();
+
+        var count = await sut.SearchAsync("back to PAGE 1");
+
+        count.Should().Be(3, "pages 2, 3 and 4 link back to page 1");
+        sut.SearchResultCount.Should().Be(3);
+        sut.CurrentSearchResult.Should().Be(1);
+        sut.IsSearching.Should().BeFalse();
+        sut.PageNumber.Should().Be(2, "the first match after page 1 is shown");
+
+        sut.NextSearchResultCommand.Execute(null);
+        sut.CurrentSearchResult.Should().Be(2);
+        sut.PageNumber.Should().Be(3);
+        sut.PreviousSearchResultCommand.Execute(null);
+        sut.PreviousSearchResultCommand.Execute(null);
+        sut.CurrentSearchResult.Should().Be(3, "before the first match comes the last");
+    }
+
+    [Fact]
+    public async Task ClosingTheFindBarClearsTheSearch()
+    {
+        var sut = await OpenLinksAsync();
+        sut.IsSearchVisible = true;
+        await sut.SearchAsync("page");
+        sut.SearchResultCount.Should().BeGreaterThan(0);
+
+        sut.IsSearchVisible = false;
+
+        sut.SearchResultCount.Should().Be(0);
+        sut.CurrentSearchResult.Should().Be(0);
+        sut.NextSearchResultCommand.CanExecute(null).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task WithoutADocumentThereIsNothingToFind()
+    {
+        var sut = NewView();
+
+        (await sut.SearchAsync("page")).Should().Be(0);
+        sut.NextSearchResultCommand.CanExecute(null).Should().BeFalse();
+        sut.PreviousSearchResultCommand.CanExecute(null).Should().BeFalse();
+    }
+
     private sealed class InlineDispatcherProvider : IDispatcherProvider
     {
         private readonly InlineDispatcher dispatcher = new();

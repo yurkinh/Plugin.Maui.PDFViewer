@@ -164,6 +164,67 @@ public partial class PdfView : ContentView
     public async Task<string> GetPageTextAsync(int pageNumber) =>
         viewModel is { } vm ? (await vm.GetTextAsync(pageNumber)).Text : "";
 
+    /// <summary>Whether the find bar is shown (the toolbar's Find button toggles it). Two-way. Hiding it clears the
+    /// search.</summary>
+    public static readonly BindableProperty IsSearchVisibleProperty = BindableProperty.Create(
+        nameof(IsSearchVisible), typeof(bool), typeof(PdfView), false, BindingMode.TwoWay,
+        propertyChanged: (b, _, n) => ((PdfView)b).OnSearchVisibleChanged((bool)n));
+
+    private static readonly BindablePropertyKey SearchResultCountKey = BindableProperty.CreateReadOnly(
+        nameof(SearchResultCount), typeof(int), typeof(PdfView), 0);
+
+    /// <summary>How many matches the current search has found so far; 0 when nothing is searched.</summary>
+    public static readonly BindableProperty SearchResultCountProperty = SearchResultCountKey.BindableProperty;
+
+    private static readonly BindablePropertyKey CurrentSearchResultKey = BindableProperty.CreateReadOnly(
+        nameof(CurrentSearchResult), typeof(int), typeof(PdfView), 0);
+
+    /// <summary>The match being shown, counting from 1 in document order; 0 when there is none.</summary>
+    public static readonly BindableProperty CurrentSearchResultProperty = CurrentSearchResultKey.BindableProperty;
+
+    private static readonly BindablePropertyKey IsSearchingKey = BindableProperty.CreateReadOnly(
+        nameof(IsSearching), typeof(bool), typeof(PdfView), false);
+
+    /// <summary>True while a search is still reading pages.</summary>
+    public static readonly BindableProperty IsSearchingProperty = IsSearchingKey.BindableProperty;
+
+    /// <inheritdoc cref="IsSearchVisibleProperty"/>
+    public bool IsSearchVisible { get => (bool)GetValue(IsSearchVisibleProperty); set => SetValue(IsSearchVisibleProperty, value); }
+
+    /// <inheritdoc cref="SearchResultCountProperty"/>
+    public int SearchResultCount { get => (int)GetValue(SearchResultCountProperty); private set => SetValue(SearchResultCountKey, value); }
+
+    /// <inheritdoc cref="CurrentSearchResultProperty"/>
+    public int CurrentSearchResult { get => (int)GetValue(CurrentSearchResultProperty); private set => SetValue(CurrentSearchResultKey, value); }
+
+    /// <inheritdoc cref="IsSearchingProperty"/>
+    public bool IsSearching { get => (bool)GetValue(IsSearchingProperty); private set => SetValue(IsSearchingKey, value); }
+
+    /// <summary>Show the next search match, wrapping to the first.</summary>
+    public ICommand NextSearchResultCommand { get; }
+
+    /// <summary>Show the previous search match, wrapping to the last.</summary>
+    public ICommand PreviousSearchResultCommand { get; }
+
+    /// <summary>
+    /// Find text in the document and highlight every match, replacing the previous search. Case is ignored unless
+    /// <paramref name="matchCase"/> is set, and white space in <paramref name="text"/> matches any space or line
+    /// break, so phrases are found across lines. The first match on or after the current page is shown as soon as it
+    /// is found; matches on later pages keep appearing until every page is read.
+    /// </summary>
+    /// <returns>The number of matches, once every page has been searched (or the search was replaced).</returns>
+    public async Task<int> SearchAsync(string text, bool matchCase = false)
+    {
+        if (viewModel is not { } vm) return 0;
+        var count = await Task.Run(() => vm.SearchAsync(text, matchCase));
+        if (ReferenceEquals(vm, viewModel) && vm.SearchQuery == TextSearch.Normalize(text) && !vm.IsSearching)
+            Announce(count switch { 0 => "No matches", 1 => "1 match", _ => $"{count} matches" });
+        return count;
+    }
+
+    /// <summary>Remove the search highlights; a search still reading pages stops.</summary>
+    public void ClearSearch() => viewModel?.ClearSearch();
+
     /// <summary>Raised on the UI thread when a document has opened and its first page is shown.</summary>
     public event EventHandler? DocumentLoaded;
 
@@ -203,6 +264,8 @@ public partial class PdfView : ContentView
         ZoomOutCommand = Forward(vm => vm.ZoomOutCommand);
         FitPageCommand = Forward(vm => vm.FitPageCommand);
         FitWidthCommand = Forward(vm => vm.FitWidthCommand);
+        NextSearchResultCommand = Forward(vm => vm.NextMatchCommand);
+        PreviousSearchResultCommand = Forward(vm => vm.PreviousMatchCommand);
 
         pageView = new GraphicsView { Drawable = drawable, AutomationId = "PdfView.Page" };
         SemanticProperties.SetDescription(pageView, "No document");
@@ -227,9 +290,10 @@ public partial class PdfView : ContentView
         var content = new Grid { Children = { pageView, spinner, error, CreateLayersPanel() } };
         var toolbar = CreateToolbar();
         toolbar.SetBinding(IsVisibleProperty, static (PdfView v) => v.ShowToolbar, source: this);
-        body = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Star)] };
+        body = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star)] };
         body.Add(toolbar, 0, 0);
-        body.Add(content, 0, 1);
+        body.Add(CreateSearchBar(), 0, 1);
+        body.Add(content, 0, 2);
         Content = body;
 
         drawable.Background = BackgroundFor(Application.Current?.RequestedTheme ?? AppTheme.Light);
@@ -345,7 +409,10 @@ public partial class PdfView : ContentView
         PageNumber = opened.PageSelector.Page;
         PublishViewState();
         foreach (var command in commands) command.Retarget();
+        drawable.Matches = opened.MatchesOn;
         UpdatePage();
+        // The find bar stays open across documents: search the new one for the same text.
+        if (IsSearchVisible && !string.IsNullOrWhiteSpace(searchBar.Text)) _ = SearchAsync(searchBar.Text);
     }
 
     private async Task CloseDocumentAsync()
@@ -362,6 +429,9 @@ public partial class PdfView : ContentView
         updatingViewState = false;
         ClearBitmaps();
         drawable.Placements = [];
+        drawable.Matches = null;
+        drawable.CurrentMatch = null;
+        UpdateSearchState(null);
         pageView.Invalidate();
         await old.DisposeAsync();
     }
@@ -382,6 +452,10 @@ public partial class PdfView : ContentView
                 break;
             case nameof(ViewModel.ViewState):
                 Dispatcher.Dispatch(PublishViewState);
+                break;
+            case nameof(ViewModel.SearchMatches) or nameof(ViewModel.CurrentMatchIndex) or nameof(ViewModel.IsSearching)
+                or nameof(ViewModel.SearchedPages):
+                Dispatcher.Dispatch(() => { if (ReferenceEquals(sender, viewModel)) UpdateSearchState(viewModel); });
                 break;
         }
     }
@@ -801,6 +875,9 @@ public partial class PdfView : ContentView
             Announce(DisplayMode == DisplayMode.Continuous ? "Continuous scroll" : "One page at a time");
         };
 
+        var find = MakeButton("Find", "Find in document");
+        find.Clicked += (_, _) => IsSearchVisible = !IsSearchVisible;
+
         var layers = MakeButton("Layers", "Show layers");
         layers.SetBinding(IsVisibleProperty, static (ViewModel vm) => vm.Layers, converter: NotEmptyConverter.Instance);
         layers.Clicked += (_, _) =>
@@ -816,8 +893,115 @@ public partial class PdfView : ContentView
             JustifyContent = Microsoft.Maui.Layouts.FlexJustify.Center,
             AlignItems = Microsoft.Maui.Layouts.FlexAlignItems.Center,
             Padding = new Thickness(4),
-            Children = { first, previous, page, count, next, last, zoomOut, zoomIn, fitPage, fitWidth, displayModeButton, layers },
+            Children = { first, previous, page, count, next, last, zoomOut, zoomIn, fitPage, fitWidth, displayModeButton, find, layers },
         };
+    }
+
+    // ---- Search ------------------------------------------------------------------------------------------------
+
+    private const int SearchDelayMs = 350;
+    private SearchBar searchBar = null!;
+    private Label searchStatus = null!;
+    private View searchRow = null!;
+    private int searchVersion;
+    private int announcedMatch = -1;
+
+    private View CreateSearchBar()
+    {
+        searchBar = new SearchBar { Placeholder = "Find in document", AutomationId = "PdfView.SearchText" };
+        searchBar.TextChanged += (_, _) => ScheduleSearch();
+        // Enter searches at once; pressed again for the same text, it moves to the next match.
+        searchBar.SearchButtonPressed += (_, _) =>
+        {
+            if (viewModel is { } vm && vm.SearchQuery.Length > 0 && vm.SearchQuery == TextSearch.Normalize(searchBar.Text ?? ""))
+            {
+                NextSearchResultCommand.Execute(null);
+                return;
+            }
+            searchVersion++;
+            _ = SearchAsync(searchBar.Text ?? "");
+        };
+
+        searchStatus = new Label { VerticalOptions = LayoutOptions.Center, Margin = new Thickness(4, 0), AutomationId = "PdfView.SearchStatus" };
+
+        static Button SearchButton(string text, string description, string id, ICommand? command = null)
+        {
+            var button = new Button
+            {
+                Text = text, Padding = new Thickness(10, 4), MinimumWidthRequest = 44, MinimumHeightRequest = 44,
+                AutomationId = "PdfView." + id, Command = command,
+            };
+            SemanticProperties.SetDescription(button, description);
+            return button;
+        }
+
+        var previous = SearchButton("<", "Previous match", "PreviousMatch", PreviousSearchResultCommand);
+        var next = SearchButton(">", "Next match", "NextMatch", NextSearchResultCommand);
+        var close = SearchButton("Done", "Close find", "CloseFind");
+        close.Clicked += (_, _) => IsSearchVisible = false;
+
+        var row = new Grid
+        {
+            ColumnDefinitions = [new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto)],
+            Padding = new Thickness(4, 0, 4, 4),
+            IsVisible = false,
+        };
+        row.Add(searchBar, 0);
+        row.Add(searchStatus, 1);
+        row.Add(previous, 2);
+        row.Add(next, 3);
+        row.Add(close, 4);
+        searchRow = row;
+        return row;
+    }
+
+    private void OnSearchVisibleChanged(bool visible)
+    {
+        searchRow.IsVisible = visible;
+        if (visible)
+        {
+            if (searchBar.Handler is not null) searchBar.Focus();
+            if (!string.IsNullOrWhiteSpace(searchBar.Text)) _ = SearchAsync(searchBar.Text);
+            return;
+        }
+        searchVersion++;
+        searchBar.Unfocus();
+        ClearSearch();
+    }
+
+    // Search as the user types, once typing pauses.
+    private async void ScheduleSearch()
+    {
+        var version = ++searchVersion;
+        await Task.Delay(SearchDelayMs);
+        if (version != searchVersion || !IsSearchVisible) return;
+        var text = searchBar.Text ?? "";
+        if (string.IsNullOrWhiteSpace(text)) ClearSearch();
+        else await SearchAsync(text);
+    }
+
+    private static int Percent(ViewModel vm) => vm.PageCount == 0 ? 0 : vm.SearchedPages * 100 / vm.PageCount;
+
+    private void UpdateSearchState(ViewModel? vm)
+    {
+        var count = vm?.SearchMatches.Count ?? 0;
+        var index = vm?.CurrentMatchIndex ?? -1;
+        var searching = vm?.IsSearching ?? false;
+        SearchResultCount = count;
+        CurrentSearchResult = index + 1;
+        IsSearching = searching;
+        searchStatus.Text = vm is null || vm.SearchQuery.Length == 0 ? ""
+            : count == 0 ? searching ? $"Searching… {Percent(vm)}%" : "No matches"
+            : $"{index + 1} of {count}{(searching ? "…" : "")}";
+        drawable.CurrentMatch = vm?.CurrentMatch;
+        pageView.Invalidate();
+        // Stepping through matches is announced; the first match of a search is announced with the count instead.
+        if (vm?.CurrentMatch is { } match && !searching && index != announcedMatch)
+        {
+            if (announcedMatch >= 0) Announce($"Match {index + 1} of {count}, page {match.Page}");
+            announcedMatch = index;
+        }
+        if (count == 0) announcedMatch = -1;
     }
 
     // Go to the typed page (clamped by the page selector); anything else puts the current page back.

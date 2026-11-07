@@ -10,8 +10,9 @@ Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a P
 
 - **Display modes:** one page at a time, or **continuous scroll** through all pages, vertically or horizontally. Only the pages near the view are rendered.
 - **Gestures:** pinch to zoom around your fingers, drag to pan, double-tap to switch between the whole page and 2×.
-- **Toolbar:** first, previous, next and last page; a page number box; zoom in and out; fit page; fit width; single page or continuous scroll; layers. Hide it with `ShowToolbar="False"` to use your own controls with the public commands.
+- **Toolbar:** first, previous, next and last page; a page number box; zoom in and out; fit page; fit width; single page or continuous scroll; find; layers. Hide it with `ShowToolbar="False"` to use your own controls with the public commands.
 - **Links:** tap a link to go to the page it points to, at the position it names. Web and mail links open in the browser or mail app. The `LinkTapped` event lets the app handle links itself.
+- **Search:** the Find button opens a find bar. Matches are highlighted on every page, the current one in orange, and the previous and next buttons step through them. Search starts at the current page and shows its progress.
 - **Layers:** optional content groups can be shown and hidden.
 - **Encrypted PDFs:** plug in your own `IPasswordSource` to supply passwords.
 - **Sources:** app package files, the file system, `FilePicker` results (including Android content URIs), byte arrays and streams.
@@ -75,12 +76,23 @@ Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfVi
 | `IsLoading` | `bool` | read-only | True while a document is opening. |
 | `ErrorMessage` | `string?` | read-only | Why the document or the page could not be shown. |
 | `ShowToolbar` | `bool` | | Shows the built-in toolbar. The default is true. |
+| `IsSearchVisible` | `bool` | two-way | Shows the find bar. Hiding it clears the search. |
+| `SearchResultCount` | `int` | read-only | The matches found so far. |
+| `CurrentSearchResult` | `int` | read-only | The match shown, counting from 1; 0 when there is none. |
+| `IsSearching` | `bool` | read-only | True while a search is still reading pages. |
 
 ### Commands
 
-`FirstPageCommand`, `PreviousPageCommand`, `NextPageCommand`, `LastPageCommand`, `ZoomInCommand`, `ZoomOutCommand`, `FitPageCommand` and `FitWidthCommand` are for your own toolbars, menus and keyboard shortcuts. Their `CanExecute` follows the open document, and `CanExecuteChanged` is raised on the UI thread.
+`FirstPageCommand`, `PreviousPageCommand`, `NextPageCommand`, `LastPageCommand`, `ZoomInCommand`, `ZoomOutCommand`, `FitPageCommand`, `FitWidthCommand`, `NextSearchResultCommand` and `PreviousSearchResultCommand` are for your own toolbars, menus and keyboard shortcuts. Their `CanExecute` follows the open document, and `CanExecuteChanged` is raised on the UI thread.
 
 ### Methods
+
+`SearchAsync(text, matchCase = false)` finds text in every page, highlights the matches and shows the first one on or after the current page. It returns the number of matches once every page has been read. Case is ignored unless `matchCase` is true. Any white space in `text` matches a space or a line break, so a phrase is found even when it wraps onto the next line. `ClearSearch()` removes the highlights.
+
+```csharp
+var count = await pdfView.SearchAsync("optional content");
+if (count > 0) pdfView.NextSearchResultCommand.Execute(null);
+```
 
 `GetPageTextAsync(pageNumber)` returns the text of a page, with spaces between words and line breaks between lines, for copying, sharing or reading aloud. A scanned page without recognised text has none.
 
@@ -147,9 +159,12 @@ These Release-build timings come from a simulator and an emulator, not real devi
 | iOS simulator | 55 ms | 43 ms |
 | Android emulator | 132 ms | 60 ms |
 
+Search reads each page's text with a pass like rendering that draws nothing. That costs about 12 ms a page on a Mac, but about 0.5 s a page in a Release build on the Android emulator (.NET 10), so the first search of a 120-page document takes about a minute there. The first match appears as soon as its page is read. The plain text of every page read is kept, so later searches of the same document read only the pages that match.
+
 ## Limitations
 
-- No text search or selection, annotation editing, form filling or printing.
+- No text selection, annotation editing, form filling or printing.
+- Search does not join words hyphenated at the end of a line, and matches text in the order it is drawn, which for some documents is not reading order.
 - No "back" after following a link, and no pointer cursor over links on desktop.
 - Links can't be reached with a screen reader yet.
 - A screen reader hears "Page X of Y", not the page text.
