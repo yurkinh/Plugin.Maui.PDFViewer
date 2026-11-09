@@ -215,9 +215,7 @@ The second command checks the package the way an app developer would use it. It 
 
 To check that the Windows code compiles on macOS or Linux, add `-p:IncludeWindowsTfm=true -p:EnableWindowsTargeting=true` to a build of the plugin project. The compile succeeds; a later Windows-only packaging step (`makepri.exe`) fails there.
 
-### Releasing
 
-Push a tag like `v0.1.0-preview1` or `v1.0.0` on a commit that is on `main`. The release workflow packs with that version and pushes the package and its symbols to nuget.org. It runs only when the repository variable `PUBLISH_NUGET` is `true` and the secret `NUGET_API_KEY` is set.
 
 ## Credits and license
 
