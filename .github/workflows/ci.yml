@@ -38,7 +38,7 @@ jobs:
       run: ./external/Pdf/build-local-packages.sh
 
     - name: Build
-      run: dotnet build src\Plugin.Maui.PDFViewer.sln -c Release
+      run: dotnet build src\Plugin.Maui.PDFViewer.slnx -c Release
 
     - name: Test
       run: dotnet test --project tests\Plugin.Maui.PDFViewer.Tests\Plugin.Maui.PDFViewer.Tests.csproj -c Release

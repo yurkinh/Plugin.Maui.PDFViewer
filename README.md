@@ -196,7 +196,7 @@ cd Plugin.Maui.PDFViewer
 ./external/Pdf/Src/install-dotnet.sh         # the .NET 11 SDK global.json asks for, plus the .NET 10 runtime
 external/Pdf/Src/.dotnet/dotnet workload install maui
 ./external/Pdf/build-local-packages.sh       # Melville.StreamInterfaces, from the fork's submodule
-external/Pdf/Src/.dotnet/dotnet build samples/Plugin.Maui.PDFViewer.Sample.sln
+external/Pdf/Src/.dotnet/dotnet build samples/Plugin.Maui.PDFViewer.Sample.slnx
 external/Pdf/Src/.dotnet/dotnet test --project tests/Plugin.Maui.PDFViewer.Tests/Plugin.Maui.PDFViewer.Tests.csproj
 ```
 

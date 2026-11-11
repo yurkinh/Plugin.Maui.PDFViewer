@@ -1,0 +1,29 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="../external/Pdf/Src/Melville.AsyncAnalyzer/Melville.AsyncAnalyzer.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.CCITT/Melville.CCITT.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Fonts.TableGenerator/Melville.Fonts.TableGenerator.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Fonts/Melville.Fonts.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Icc/Melville.Icc.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.JBig2/Melville.JBig2.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.JpegLibrary/Melville.JpegLibrary.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Parsing/Melville.Parsing.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Pdf.FontLibrary/Melville.Pdf.FontLibrary.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Pdf.LowLevel/Melville.Pdf.LowLevel.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Pdf.MauiGraphics/Melville.Pdf.MauiGraphics.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Pdf.Model/Melville.Pdf.Model.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Pdf.ReferenceDocuments/Melville.Pdf.ReferenceDocuments.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Pdf.SkiaSharp/Melville.Pdf.SkiaSharp.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Pdf.TextExtractor/Melville.Pdf.TextExtractor.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Pdf.ViewerModel/Melville.Pdf.ViewerModel.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Postscript.Interpreter/Melville.Postscript.Interpreter.csproj" />
+  <Project Path="../external/Pdf/Src/Melville.Postscript.OperationGenerator/Melville.Postscript.OperationGenerator.csproj" />
+  <Project Path="../external/Pdf/Src/Pdf.KnownNamesGenerator/Pdf.KnownNamesGenerator.csproj" />
+  <Project Path="../src/Plugin.Maui.PDFViewer/Plugin.Maui.PDFViewer.csproj" />
+  <Project Path="Plugin.Maui.PDFViewer.Sample/Plugin.Maui.PDFViewer.Sample.csproj" />
+  <Project Path="Plugin.Maui.PDFViewer.TestApp/Plugin.Maui.PDFViewer.TestApp.csproj" />
+</Solution>
