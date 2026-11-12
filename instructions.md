@@ -126,10 +126,16 @@ Fork rules:
 - Consequence for apps: don't also reference upstream's Melville.Pdf packages (duplicate assemblies).
 - CJK fonts are not shipped: the fork's `Melville.Pdf.FontLibrary.Cjk` `.ttc` fonts fail to load (EndOfStream, found
   in phase 0). Apps needing CJK supply their own `IDefaultFontMapper` via `UseMauiPdf(o => o.FontMapper = ...)`.
-- **Publishing** (not done yet; the user's call): set the repository variable `PUBLISH_NUGET=true`, add the secret
-  `NUGET_API_KEY`, push a tag `vX.Y.Z` or `vX.Y.Z-previewN` on a commit that is on `main`. `release-nuget.yml` packs
-  with the tag's version and pushes only `Plugin.Maui.PDFViewer.*.nupkg` (+ symbols). Current version:
-  `0.1.0-preview.1` (`PluginVersion` in `Directory.Build.props`).
+### Releasing
+
+Push a tag like `v0.1.0-preview1` or `v1.0.0` on a commit that is on `main`. The release workflow packs with that
+version and pushes the package and its symbols to nuget.org. It runs only when the repository variable
+`PUBLISH_NUGET` is `true` and the secret `NUGET_API_KEY` is set.
+
+- Nothing has been published yet; when to release is the owner's call.
+- `release-nuget.yml` pushes only `Plugin.Maui.PDFViewer.*.nupkg` (its `.snupkg` goes with it), never the fork's
+  local Melville.Streams packages that `artifacts/nuget` can also hold.
+- Without a tag, the version is `PluginVersion` in `Directory.Build.props` (currently `0.1.0-preview.1`).
 
 ## 7. Testing on devices
 
