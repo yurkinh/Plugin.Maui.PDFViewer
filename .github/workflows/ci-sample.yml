@@ -30,6 +30,14 @@ jobs:
       with:
         global-json-file: global.json
 
+    # .NET 11's iOS and Mac Catalyst packs need the newest Xcode (27.2 for 11.0.0); use the newest on the runner.
+    - name: Select the newest Xcode
+      if: runner.os == 'macOS'
+      run: |
+        latest=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+        sudo xcode-select -s "$latest"
+        xcodebuild -version
+
     - name: Install .NET MAUI Workload
       run: dotnet workload install maui
 

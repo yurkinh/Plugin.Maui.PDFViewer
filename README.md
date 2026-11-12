@@ -1,6 +1,6 @@
 # Plugin.Maui.PDFViewer
 
-`PdfView` is a PDF viewer control for .NET MAUI. It runs on Android, iOS, Mac Catalyst and Windows.
+`PdfView` is a PDF viewer control for .NET MAUI 11 (.NET 11). It runs on Android, iOS, Mac Catalyst and Windows.
 
 Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a PDF renderer written entirely in .NET, and drawn with Microsoft.Maui.Graphics. There are no native PDF libraries, so a page looks the same on every platform. The package is trim and Native AOT compatible.
 
@@ -147,23 +147,28 @@ public sealed class AskForPassword : IPasswordSource
 
 | Platform | Minimum | Notes |
 |---|---|---|
-| Android | API 21 (API 24 on .NET 11) | No permissions needed. `FilePicker` returns content URIs; `PdfSource.FromFileResult` reads them. |
-| iOS | 15.0 | |
-| Mac Catalyst | 17.0 | To open picked files in a sandboxed app, add `com.apple.security.files.user-selected.read-only`. Trackpad scrolling pans the page. |
+| Android | API 24 | No permissions needed. `FilePicker` returns content URIs; `PdfSource.FromFileResult` reads them. |
+| iOS | 15.0 | Apps need Xcode 27.2 with MAUI 11.0.0 (the iOS 27.2 SDK); older Xcode fails with MT180. |
+| Mac Catalyst | 17.0 | Xcode 27.2, as for iOS. To open picked files in a sandboxed app, add `com.apple.security.files.user-selected.read-only`. Trackpad scrolling pans the page. |
 | Windows | 10.0.17763 | The mouse wheel scrolls; Shift + wheel scrolls sideways and Ctrl + wheel zooms around the pointer. Built in CI, but not yet tested on a device. |
 
 ## Performance
 
 A page is drawn once into a display list on a worker thread. The viewer then draws cached bitmaps: one for the whole page, plus one for the visible area when you zoom in a long way. It never replays the page on the UI thread, which matters most on iOS and Mac: CoreGraphics takes about 140 ms to fill a page of text, while drawing the cached bitmap takes 0.2 ms. A new page shows white until its bitmap is ready.
 
-These Release-build timings come from a simulator and an emulator, not real devices. To record a text page:
+Release builds on a Motorola Edge 60 Neo (Android 16). The package targets .NET 11, which runs on CoreCLR on Android, iOS and Mac Catalyst and with runtime async; .NET 10 (Mono) is shown for comparison:
 
-| Platform | .NET 10 | .NET 11 |
+| Motorola Edge 60 Neo | .NET 10 | .NET 11 |
 |---|---|---|
-| iOS simulator | 55 ms | 43 ms |
-| Android emulator | 132 ms | 60 ms |
+| Record a page of text | 260 ms | 60 ms |
+| Replay it into a bitmap (800 × 1035 px) | 74 ms | 44 ms |
+| Draw the cached bitmap (a frame) | 0.9 ms | 0.9 ms |
+| Search all 120 pages of the long sample | 32 s | 5 s |
+| Render every sample and reference document (251 documents, 390 pages) | 49 s | 13 s |
 
-Search reads each page's text with a pass like rendering that draws nothing. That costs about 12 ms a page on a Mac, but about 0.5 s a page in a Release build on the Android emulator (.NET 10), so the first search of a 120-page document takes about a minute there. The first match appears as soon as its page is read. The plain text of every page read is kept, so later searches of the same document read only the pages that match.
+On an iPhone 13 (.NET 11, Release): recording that page takes 62 ms, replaying it into a bitmap 125 ms (CoreGraphics is slow at filling text, which is why the viewer caches bitmaps), and drawing the cached bitmap 0.26 ms; all 251 documents render in 11 s. A Native AOT build on a Mac renders them in 2 s.
+
+Search reads each page's text with a pass like rendering that draws nothing. The first match appears as soon as its page is read. The plain text of every page read is kept, so later searches of the same document read only the pages that match.
 
 ## Limitations
 
@@ -193,7 +198,7 @@ This repository follows the [Plugin.Maui.Feature](https://github.com/jfversluis/
 ```bash
 git clone --recursive https://github.com/yurkinh/Plugin.Maui.PDFViewer.git
 cd Plugin.Maui.PDFViewer
-./external/Pdf/Src/install-dotnet.sh         # the .NET 11 SDK global.json asks for, plus the .NET 10 runtime
+./external/Pdf/Src/install-dotnet.sh         # the .NET 11 SDK global.json asks for (the fork's libraries also need the .NET 10 runtime)
 external/Pdf/Src/.dotnet/dotnet workload install maui
 ./external/Pdf/build-local-packages.sh       # Melville.StreamInterfaces, from the fork's submodule
 external/Pdf/Src/.dotnet/dotnet build samples/Plugin.Maui.PDFViewer.Sample.slnx
@@ -204,10 +209,10 @@ external/Pdf/Src/.dotnet/dotnet test --project tests/Plugin.Maui.PDFViewer.Tests
 
 ```bash
 ./pack-nuget.sh                                         # writes artifacts/nuget/Plugin.Maui.PDFViewer.*.nupkg
-./tools/test-package-consumer.sh net10.0-android net10.0-ios
+./tools/test-package-consumer.sh net11.0-android net11.0-ios
 ```
 
-The package is self-contained. The Melville.Pdf assemblies it uses are built from the fork in `external/Pdf` and bundled in its `lib` folders, for net10.0 (upstream's packages target net11.0 only, and the `Melville.*` IDs on nuget.org belong to the upstream author). Its dependencies are packages on nuget.org: Microsoft.Maui.Controls, CoreJ2K, Melville.Hacks, Melville.INPC and Melville.Linq. `pack-nuget.sh` fails if any target framework lacks a bundled assembly, if a dependency is something else, or if those versions drift from the fork's. CI packs on every push and uploads the package as a build artifact.
+The package targets .NET 11 only and is self-contained. The Melville.Pdf assemblies it uses are built from the fork in `external/Pdf` and bundled in its `lib` folders: the fork adds the MAUI renderer, viewer model, links and text layer to upstream, and the `Melville.*` IDs on nuget.org belong to the upstream author. Its dependencies are packages on nuget.org: Microsoft.Maui.Controls, CoreJ2K, Melville.Hacks, Melville.INPC and Melville.Linq. `pack-nuget.sh` fails if any target framework lacks a bundled assembly, if a dependency is something else, or if those versions drift from the fork's. CI packs on every push and uploads the package as a build artifact.
 
 Because the Melville assemblies are bundled, an app should not also reference upstream's Melville.Pdf packages: it would get two copies of the same assemblies.
 

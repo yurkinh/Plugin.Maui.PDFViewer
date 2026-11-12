@@ -2,20 +2,22 @@
 # Check the packed Plugin.Maui.PDFViewer works for an app developer: create a fresh .NET MAUI app with the installed
 # (non-repository) SDK, restore Plugin.Maui.PDFViewer from artifacts/nuget, show a bundled PDF in a PdfView, and build it.
 #
-#   ./pack-nuget.sh && ./tools/test-package-consumer.sh [net10.0-android net10.0-ios ...]
+#   ./pack-nuget.sh && ./tools/test-package-consumer.sh [net11.0-android net11.0-ios ...]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FEED="$ROOT/artifacts/nuget"
 VERSION="$(ls "$FEED" | sed -n 's/^Plugin\.Maui\.PDFViewer\.\([0-9].*\)\.nupkg$/\1/p' | head -1)"
 [ -n "$VERSION" ] || { echo "No Plugin.Maui.PDFViewer package in $FEED; run ./pack-nuget.sh first." >&2; exit 1; }
-FRAMEWORKS=("${@:-net10.0-android}")
+FRAMEWORKS=("${@:-net11.0-android}")
 DOTNET="${CONSUMER_DOTNET:-dotnet}"      # deliberately not the repository SDK: a consumer has a normal one
-WORK="$(mktemp -d)"; trap 'status=$?; rm -rf "$WORK"; exit $status' EXIT
+# The physical path: on macOS mktemp gives /var/..., a symlink to /private/var/..., and MAUI 11's XAML source
+# generator then rejects the template's resource paths (MAUIG1001 "not a valid resource path").
+WORK="$(cd "$(mktemp -d)" && pwd -P)"; trap 'status=$?; rm -rf "$WORK"; exit $status' EXIT
 cd "$WORK"
 # Its own package folder: a package of the same version cached from an earlier pack must not stand in for this one.
 export NUGET_PACKAGES="$WORK/packages"
 
-"$DOTNET" new maui -n PdfConsumer -o . >/dev/null
+"$DOTNET" new maui -n PdfConsumer -o . -f net11.0 >/dev/null   # the package targets .NET 11 only
 cat > nuget.config <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>

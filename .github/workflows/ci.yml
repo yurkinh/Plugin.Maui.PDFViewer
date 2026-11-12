@@ -22,13 +22,11 @@ jobs:
       with:
         submodules: recursive
 
-    # The SDK from global.json (.NET 11, builds the net10.0 and net11.0 Melville libraries) plus the .NET 10 runtime
-    # for the net10.0 tests.
+    # The SDK from global.json (.NET 11): the plugin, its tests and the samples target net11.0 only.
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         global-json-file: global.json
-        dotnet-version: 10.0.x
 
     - name: Install .NET MAUI Workload
       run: dotnet workload install maui
@@ -70,6 +68,14 @@ jobs:
       with:
         global-json-file: global.json
 
+    # .NET 11's iOS and Mac Catalyst packs need the newest Xcode (27.2 for 11.0.0); use the newest on the runner.
+    - name: Select the newest Xcode
+      if: runner.os == 'macOS'
+      run: |
+        latest=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+        sudo xcode-select -s "$latest"
+        xcodebuild -version
+
     - name: Install .NET MAUI Workload
       run: dotnet workload install maui-maccatalyst
 
@@ -78,6 +84,6 @@ jobs:
 
     - name: Native AOT publish of the test app, no IL warnings
       run: |
-        dotnet publish samples/Plugin.Maui.PDFViewer.TestApp/Plugin.Maui.PDFViewer.TestApp.csproj -f net10.0-maccatalyst -c Release \
+        dotnet publish samples/Plugin.Maui.PDFViewer.TestApp/Plugin.Maui.PDFViewer.TestApp.csproj -f net11.0-maccatalyst -c Release \
           -p:RuntimeIdentifier=maccatalyst-arm64 -p:MelvilleNativeAot=true -p:CreatePackage=false | tee aot.log
         if grep -E "warning IL[0-9]+" aot.log; then echo "::error::trim/AOT warnings"; exit 1; fi

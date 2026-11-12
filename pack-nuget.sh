@@ -4,9 +4,9 @@
 #   ./pack-nuget.sh                        # version from Directory.Build.props
 #   PLUGIN_VERSION=0.2.0 ./pack-nuget.sh
 #
-# The package is self-contained: the Melville.Pdf assemblies it uses are built from the fork in external/Pdf (net10.0
-# and net11.0; upstream's packages are net11.0 only) and bundled in its lib folders, because the Melville.* IDs on
-# nuget.org belong to the upstream author. So are Melville.StreamInterfaces and Melville.IntersectionTypes, built from
+# The package targets .NET 11 only and is self-contained: the Melville.Pdf assemblies it uses are built from the fork in
+# external/Pdf (which adds the MAUI renderer, viewer model, links and text layer to upstream) and bundled in its lib
+# folders, because the Melville.* IDs on nuget.org belong to the upstream author. So are Melville.StreamInterfaces and Melville.IntersectionTypes, built from
 # the fork's Melville.Streams submodule and not on nuget.org. Its dependencies are packages on nuget.org only.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"

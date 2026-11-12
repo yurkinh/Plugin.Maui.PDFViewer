@@ -4,8 +4,18 @@
   <PropertyGroup>
     <!-- Version of the Plugin.Maui.PDFViewer package. The release workflow passes the tag's version instead. -->
     <PluginVersion Condition="'$(PluginVersion)' == ''">0.1.0-preview.1</PluginVersion>
-    <!-- net10.0 by default; -p:PluginTfm=net11.0 builds .NET 11 heads (after MAUI 11 ships). -->
-    <PluginTfm Condition="'$(PluginTfm)' == ''">net10.0</PluginTfm>
+    <!-- .NET 11 only: the plugin, its tests and the samples. (The Melville.Pdf libraries in external/Pdf also build
+         net10.0 for upstream; the package bundles their net11.0 builds.) -->
+    <PluginTfm>net11.0</PluginTfm>
+    <!-- Microsoft.Maui.Controls for the plugin and samples, and so the plugin package's minimum dependency. The lowest
+         MAUI 11 (11.0.0): an app created from the MAUI 11.0.0 workload references 11.0.0, and a higher minimum here
+         would make its restore fail with a downgrade error (NU1605). Pinned rather than the workload's $(MauiVersion),
+         so the package does not depend on whichever workload built it. -->
+    <PluginMauiVersion Condition="'$(PluginMauiVersion)' == ''">11.0.0</PluginMauiVersion>
+    <!-- Runtime async: .NET 11 runs async methods in the runtime instead of compiler-generated state machines, as
+         the Melville.Pdf libraries already do. On Android, iOS and Mac Catalyst it needs CoreCLR, the .NET 11 default
+         (UseMonoRuntime=false). -p:PluginRuntimeAsync=false turns it off. -->
+    <Features Condition="'$(PluginRuntimeAsync)' != 'false'">$(Features);runtime-async=on</Features>
     <LangVersion>14</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
