@@ -87,16 +87,16 @@
 		<CodesignEntitlements>Platforms/MacCatalyst/Entitlements.Debug.plist</CodesignEntitlements>
 	</PropertyGroup>
 
-	<!-- Phase 8 gate: -p:MelvilleNativeAot=true publishes with Native AOT and full trimming (Mac Catalyst, iOS).
+	<!-- Phase 8 gate: -p:MelvilleNativeAot=true publishes with Native AOT (Mac Catalyst, iOS), which always trims all
+	     assemblies (setting TrimMode as well draws a warning).
 	     Set here rather than on the command line: a global PublishAot would also apply to the referenced libraries. -->
 	<PropertyGroup Condition="'$(MelvilleNativeAot)' == 'true'">
 		<PublishAot>true</PublishAot>
-		<TrimMode>full</TrimMode>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(PluginMauiVersion)" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="11.0.0" />
 	</ItemGroup>
 
 </Project>

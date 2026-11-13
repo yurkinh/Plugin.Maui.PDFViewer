@@ -45,7 +45,7 @@ public static class SpikeRunner
         return lines;
     }
 
-    /// <summary>Renders page 1 of each document with the existing Skia renderer: proves the net10.0 core runs here.</summary>
+    /// <summary>Renders page 1 of each document with the existing Skia renderer: proves the Melville.Pdf core runs here.</summary>
     public static async Task<(IReadOnlyList<SpikeLine> Lines, byte[]? FirstPng)> RunCoreChecksAsync()
     {
         var lines = new List<SpikeLine> { new("Runtime", $"{System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}, {DeviceInfo.Platform} {DeviceInfo.VersionString}") };
