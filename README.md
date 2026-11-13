@@ -54,9 +54,14 @@ builder
 ```csharp
 Source = PdfSource.FromAppPackage("manual.pdf");          // Resources/Raw/manual.pdf
 Source = PdfSource.FromFileResult(await FilePicker.Default.PickAsync(...));
+Source = PdfSource.FromFile(path);
+Source = PdfSource.FromUri(new Uri("https://example.com/manual.pdf")); // downloaded into memory
+Source = PdfSource.FromEmbeddedResource(typeof(App).Assembly, "manual.pdf");
 Source = PdfSource.FromBytes(bytes);
 Source = PdfSource.FromStream(async ct => await http.GetStreamAsync(url, ct));
 ```
+
+A string works too, in XAML (`Source="manual.pdf"`) and when `Source` is bound to a string property: an `http` or `https` URL is downloaded, a `file:` URI or a rooted path is read from the file system, and anything else is a file bundled with the app.
 
 Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfView />` with no prefix.
 
@@ -71,9 +76,12 @@ Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfVi
 | `PageNumber` | `int` | two-way | The page shown, starting at 1. |
 | `PageCount` | `int` | read-only | The number of pages, or 0 when no document is open. |
 | `ZoomMode` | `ZoomMode` | two-way | `FitWidth` (the default), `FitPage`, or `Custom` after zooming. |
+| `MaxZoom` | `double` | | The largest zoom as a multiple of fit width. The default is 4; values below 1 are ignored. |
+| `MinZoom` | `double` | | The smallest zoom as a multiple of fit width. The default is 1, so zooming out stops at fit width; fit page stays reachable when it is smaller. |
 | `DisplayMode` | `DisplayMode` | two-way | `Continuous` (the default) or `SinglePage`. The toolbar button switches between them. |
 | `ScrollOrientation` | `ScrollOrientation` | | In continuous mode: `Vertical` (the default) or `Horizontal`. This is MAUI's `ScrollView` enum; `Both` and `Neither` mean vertical. |
 | `ViewState` | `PdfViewState?` | two-way | The page, zoom mode, zoom and scroll. Set it before `Source` to open at a saved position. It works in both display modes. |
+| `PageChangedCommand` | `ICommand?` | | Executed with `PageChangedEventArgs` whenever `PageChanged` is raised. |
 | `IsLoading` | `bool` | read-only | True while a document is opening. |
 | `ErrorMessage` | `string?` | read-only | Why the document or the page could not be shown. |
 | `ShowToolbar` | `bool` | | Shows the built-in toolbar. The default is false. |
@@ -102,6 +110,8 @@ if (count > 0) pdfView.NextSearchResultCommand.Execute(null);
 `GetPageTextAsync(pageNumber)` returns the text of a page, with spaces between words and line breaks between lines, for copying, sharing or reading aloud. A scanned page without recognised text has none.
 
 ### Events
+
+`PageChanged` is raised with `PageChangedEventArgs(CurrentPage, TotalPages)` when the page shown or the page count changes while a document is open: once it opens, and after scrolling, navigating or searching. `PageChangedCommand` is executed with the same arguments.
 
 `DocumentLoaded` is raised once the first page is shown. `LoadFailed` is raised with the exception when a document cannot be opened. Both are raised on the UI thread.
 

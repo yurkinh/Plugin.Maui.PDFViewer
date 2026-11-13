@@ -385,4 +385,88 @@ public class PdfViewTest : IAsyncLifetime
 
         public IDispatcherTimer CreateTimer() => throw new NotSupportedException();
     }
+
+    [Fact]
+    public async Task PageChangedReportsTheOpenedDocumentAndEveryMove()
+    {
+        var sut = NewView();
+        sut.DisplayMode = DisplayMode.SinglePage;
+        var events = new List<PageChangedEventArgs>();
+        var commanded = new List<PageChangedEventArgs>();
+        sut.PageChanged += (_, e) => events.Add(e);
+        sut.PageChangedCommand = new Command<PageChangedEventArgs>(commanded.Add);
+
+        await OpenAsync(sut, PdfSource.FromBytes(await PdfAsync(6)));
+        sut.NextPageCommand.Execute(null);
+        sut.PageNumber = 5;
+
+        events.Should().Equal(new PageChangedEventArgs(1, 6), new PageChangedEventArgs(2, 6), new PageChangedEventArgs(5, 6));
+        commanded.Should().Equal(events);
+    }
+
+    [Fact]
+    public async Task ZoomingInStopsAtMaxZoomTimesFitWidth()
+    {
+        var sut = NewView();
+        LayOut(sut, 400, 600);
+        await OpenAsync(sut, PdfSource.FromBytes(await PdfAsync(3)));
+        var fitWidth = sut.ViewState!.Value.Zoom;
+        sut.MaxZoom = 2;
+
+        for (var i = 0; i < 10; i++) sut.ZoomInCommand.Execute(null);
+
+        sut.ViewState!.Value.Zoom.Should().BeApproximately(2 * fitWidth, 1e-9);
+        sut.ZoomInCommand.CanExecute(null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void MaxZoomBelowFitWidthIsIgnored()
+    {
+        var sut = NewView();
+        sut.MaxZoom.Should().Be(4);
+        sut.MinZoom.Should().Be(1);
+
+        sut.MaxZoom = 0.5;
+
+        sut.MaxZoom.Should().Be(4, "MAUI ignores values that fail validation");
+    }
+
+    [Fact]
+    public async Task AStringPathOpensThatFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"pdfview-{Guid.NewGuid():N}.pdf");
+        await File.WriteAllBytesAsync(path, await PdfAsync(2));
+        try
+        {
+            var sut = NewView();
+            await OpenAsync(sut, path); // implicit conversion, as a binding to a string property does
+            sut.PageCount.Should().Be(2);
+
+            var converted = (PdfSource)new PdfSourceConverter().ConvertFrom(null, null, new Uri(path).AbsoluteUri)!;
+            await using var stream = await converted.OpenAsync(CancellationToken.None);
+            stream.Length.Should().Be(new FileInfo(path).Length);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task AMissingEmbeddedResourceFailsToOpen()
+    {
+        var source = PdfSource.FromEmbeddedResource(typeof(PdfViewTest).Assembly, "missing.pdf");
+
+        var open = () => source.OpenAsync(CancellationToken.None);
+
+        await open.Should().ThrowAsync<FileNotFoundException>();
+    }
+
+    [Fact]
+    public void OnlyWebAndFileUrisAreSources()
+    {
+        var ftp = () => PdfSource.FromUri(new Uri("ftp://example.com/a.pdf"));
+        ftp.Should().Throw<ArgumentException>();
+        PdfSource.FromUri(new Uri("https://example.com/a.pdf")).Should().NotBeNull(); // nothing is downloaded until opened
+    }
 }

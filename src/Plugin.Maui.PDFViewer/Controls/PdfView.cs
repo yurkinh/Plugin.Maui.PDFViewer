@@ -10,6 +10,7 @@ using Melville.Pdf.Model.Documents;
 using Melville.Pdf.Model.Renderers.FontRenderings.DefaultFonts;
 using Melville.Pdf.ViewerModel;
 using ScrollOrientation = Microsoft.Maui.ScrollOrientation;
+using ModelZoomMode = Melville.Pdf.ViewerModel.ZoomMode;
 using Microsoft.Extensions.DependencyInjection;
 using ViewModel = Melville.Pdf.ViewerModel.PdfViewerViewModel<Melville.Pdf.MauiGraphics.Drawing.PdfDisplayList>;
 
@@ -45,7 +46,7 @@ public partial class PdfView : ContentView
     /// <summary>How the page is sized: fit width (the default), fit page, or the zoom the user chose.</summary>
     public static readonly BindableProperty ZoomModeProperty = BindableProperty.Create(
         nameof(ZoomMode), typeof(ZoomMode), typeof(PdfView), ZoomMode.FitWidth, BindingMode.TwoWay,
-        propertyChanged: (b, _, n) => { if (((PdfView)b).viewModel is { } vm) vm.ZoomMode = (ZoomMode)n; });
+        propertyChanged: (b, _, n) => { if (((PdfView)b).viewModel is { } vm) vm.ZoomMode = ((ZoomMode)n).ToModel(); });
 
     private static readonly BindablePropertyKey IsLoadingKey = BindableProperty.CreateReadOnly(
         nameof(IsLoading), typeof(bool), typeof(PdfView), false);
@@ -82,6 +83,28 @@ public partial class PdfView : ContentView
     /// controls and use the public commands.</summary>
     public static readonly BindableProperty ShowToolbarProperty = BindableProperty.Create(
         nameof(ShowToolbar), typeof(bool), typeof(PdfView), false);
+
+    /// <summary>
+    /// The largest zoom as a multiple of fit width: 4 (the default) zooms in to four times the fit-width size. Values
+    /// below 1 are ignored.
+    /// </summary>
+    public static readonly BindableProperty MaxZoomProperty = BindableProperty.Create(
+        nameof(MaxZoom), typeof(double), typeof(PdfView), 4.0,
+        validateValue: (_, v) => (double)v >= 1,
+        propertyChanged: (b, _, n) => { if (((PdfView)b).viewModel is { } vm) vm.MaxZoom = (double)n; });
+
+    /// <summary>
+    /// The smallest zoom as a multiple of fit width: 1 (the default) stops zooming out at fit width. Fit page stays
+    /// reachable when it is smaller (a landscape view). Negative values are ignored.
+    /// </summary>
+    public static readonly BindableProperty MinZoomProperty = BindableProperty.Create(
+        nameof(MinZoom), typeof(double), typeof(PdfView), 1.0,
+        validateValue: (_, v) => (double)v >= 0,
+        propertyChanged: (b, _, n) => { if (((PdfView)b).viewModel is { } vm) vm.MinZoom = (double)n; });
+
+    /// <summary>Executed with a <see cref="PageChangedEventArgs"/> whenever <see cref="PageChanged"/> is raised.</summary>
+    public static readonly BindableProperty PageChangedCommandProperty = BindableProperty.Create(
+        nameof(PageChangedCommand), typeof(ICommand), typeof(PdfView));
 
     /// <summary>
     /// The page, zoom and scroll position, two-way. The viewer updates it as the user moves around, so a host can
@@ -126,6 +149,25 @@ public partial class PdfView : ContentView
         get => (ScrollOrientation)GetValue(ScrollOrientationProperty);
         set => SetValue(ScrollOrientationProperty, value);
     }
+
+    /// <inheritdoc cref="MaxZoomProperty"/>
+    public double MaxZoom { get => (double)GetValue(MaxZoomProperty); set => SetValue(MaxZoomProperty, value); }
+
+    /// <inheritdoc cref="MinZoomProperty"/>
+    public double MinZoom { get => (double)GetValue(MinZoomProperty); set => SetValue(MinZoomProperty, value); }
+
+    /// <inheritdoc cref="PageChangedCommandProperty"/>
+    public ICommand? PageChangedCommand
+    {
+        get => (ICommand?)GetValue(PageChangedCommandProperty);
+        set => SetValue(PageChangedCommandProperty, value);
+    }
+
+    /// <summary>
+    /// Raised when the page shown or the page count changes while a document is open: after opening, scrolling,
+    /// navigating or searching. Also executes <see cref="PageChangedCommand"/>.
+    /// </summary>
+    public event EventHandler<PageChangedEventArgs>? PageChanged;
 
     /// <inheritdoc cref="ShowToolbarProperty"/>
     public bool ShowToolbar { get => (bool)GetValue(ShowToolbarProperty); set => SetValue(ShowToolbarProperty, value); }
@@ -361,6 +403,24 @@ public partial class PdfView : ContentView
     {
         base.OnPropertyChanged(propertyName);
         if (propertyName == BackgroundColorProperty.PropertyName) UpdatePageBackground();
+        else if (propertyName == PageNumberProperty.PropertyName || propertyName == PageCountProperty.PropertyName)
+            RaisePageChanged();
+    }
+
+    private (int Page, int Count) lastPageChanged;
+
+    private void RaisePageChanged()
+    {
+        if (PageCount <= 0)
+        {
+            lastPageChanged = default; // closed: the next document reports its first page again
+            return;
+        }
+        if ((PageNumber, PageCount) == lastPageChanged) return;
+        lastPageChanged = (PageNumber, PageCount);
+        var args = new PageChangedEventArgs(PageNumber, PageCount);
+        PageChanged?.Invoke(this, args);
+        if (PageChangedCommand is { } command && command.CanExecute(args)) command.Execute(args);
     }
 
     private async void OnSourceChanged()
@@ -432,18 +492,20 @@ public partial class PdfView : ContentView
         // A custom zoom belongs to the document it was chosen for; a new document starts fitted, unless the host
         // asked for a saved position.
         if (ZoomMode == ZoomMode.Custom) ZoomMode = ZoomMode.FitWidth;
-        opened.ZoomMode = ZoomMode;
+        opened.ZoomMode = ZoomMode.ToModel();
+        opened.MinZoom = MinZoom;
+        opened.MaxZoom = MaxZoom;
         opened.PropertyChanged += OnViewModelChanged;
         opened.PageSelector.PropertyChanged += OnPageSelectorChanged;
         PageCount = opened.PageCount;
         opened.SetViewport(pageView.Width, pageView.Height);
         opened.ScrollOrientation = ToStrip(ScrollOrientation);
-        opened.DisplayMode = DisplayMode;
+        opened.DisplayMode = DisplayMode.ToModel();
         if (requestedViewState is { } requested)
         {
             requestedViewState = null;
-            opened.Restore(requested);
-            ZoomMode = opened.ZoomMode;
+            opened.Restore(requested.ToModel());
+            ZoomMode = opened.ZoomMode.ToPublic();
         }
         PageNumber = opened.PageSelector.Page;
         PublishViewState();
@@ -489,7 +551,7 @@ public partial class PdfView : ContentView
                 Dispatcher.Dispatch(() => ErrorMessage = viewModel?.RenderError);
                 break;
             case nameof(ViewModel.ZoomMode):
-                Dispatcher.Dispatch(() => { if (viewModel is { } vm) ZoomMode = vm.ZoomMode; });
+                Dispatcher.Dispatch(() => { if (viewModel is { } vm) ZoomMode = vm.ZoomMode.ToPublic(); });
                 break;
             case nameof(ViewModel.ViewState):
                 Dispatcher.Dispatch(PublishViewState);
@@ -518,7 +580,7 @@ public partial class PdfView : ContentView
 
     private void OnDisplayModeChanged(DisplayMode mode)
     {
-        if (viewModel is { } vm) vm.DisplayMode = mode;
+        if (viewModel is { } vm) vm.DisplayMode = mode.ToModel();
         if (displayModeButton is { } button)
         {
             // The button names the mode it switches to.
@@ -533,7 +595,7 @@ public partial class PdfView : ContentView
     {
         if (viewModel is not { } vm) return;
         updatingViewState = true;
-        try { ViewState = vm.ViewState; }
+        try { ViewState = vm.ViewState.ToPublic(); }
         finally { updatingViewState = false; }
     }
 
@@ -542,8 +604,8 @@ public partial class PdfView : ContentView
         if (updatingViewState || state is not { } requested) return;
         if (viewModel is { } vm && !IsLoading)
         {
-            vm.Restore(requested);
-            ZoomMode = vm.ZoomMode;
+            vm.Restore(requested.ToModel());
+            ZoomMode = vm.ZoomMode.ToPublic();
         }
         else
         {
@@ -780,8 +842,8 @@ public partial class PdfView : ContentView
         doubleTap.Tapped += (_, e) =>
         {
             if (viewModel is not { } vm) return;
-            if (vm.ZoomMode != ZoomMode.FitWidth)
-                vm.ZoomMode = ZoomMode.FitWidth;
+            if (vm.ZoomMode != ModelZoomMode.FitWidth)
+                vm.ZoomMode = ModelZoomMode.FitWidth;
             else if (e.GetPosition(view) is { } point)
                 vm.ZoomAt(2, point.X, point.Y);
         };
