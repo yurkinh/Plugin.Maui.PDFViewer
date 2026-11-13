@@ -16,7 +16,7 @@
          the Melville.Pdf libraries already do. On Android, iOS and Mac Catalyst it needs CoreCLR, the .NET 11 default
          (UseMonoRuntime=false). -p:PluginRuntimeAsync=false turns it off. -->
     <Features Condition="'$(PluginRuntimeAsync)' != 'false'">$(Features);runtime-async=on</Features>
-    <LangVersion>14</LangVersion>
+    <LangVersion>15</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
