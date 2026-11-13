@@ -9,7 +9,7 @@ Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a P
 ## Features
 
 - **Display modes:** **continuous scroll** through all pages (the default), vertically or horizontally, or one page at a time. Pages fit the width by default and sit on a white background with a soft shadow. Only the pages near the view are rendered.
-- **Gestures:** pinch to zoom around your fingers, drag to pan, double-tap to switch between fit width and 2×.
+- **Gestures:** pinch to zoom around your fingers, drag to pan with momentum (a flick keeps scrolling and slows down; a touch stops it), double-tap to switch between fit width and 2×. A thin scroll indicator shows where you are while scrolling and fades out afterwards.
 - **Toolbar:** one compact row with previous and next page, a page number box, zoom out and in, and a "⋯" menu with first and last page, fit page, fit width, single page or continuous scroll, find and layers. It has its own flat style, whatever the app's Button style. It is off by default: turn it on with `ShowToolbar="True"`, or use your own controls with the public commands.
 - **Page appearance:** a soft shadow, the space around pages and a crop (`PageAppearance`).
 - **Links:** tap a link to go to the page it points to, at the position it names. Web and mail links open in the browser or mail app. The `LinkTapped` event lets the app handle links itself.
@@ -87,6 +87,7 @@ Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfVi
 | `ErrorMessage` | `string?` | read-only | Why the document or the page could not be shown. |
 | `ShowToolbar` | `bool` | | Shows the built-in toolbar. The default is false. |
 | `BackgroundColor` | `Color?` | | Behind the pages. When not set: white, or dark grey in the dark theme. |
+| `ShowScrollIndicator` | `bool` | | Shows a thin scroll indicator at the edge while scrolling; it fades out when scrolling stops. The default is true. |
 | `PageAppearance` | `PageAppearance?` | | `ShadowEnabled` (default true), `Margin` around every page while scrolling (default `8,4`: 8 between pages and at the sides, 4 at the ends) and `Crop` in PDF points, off every side of every page (default none). Changes apply at once. |
 | `IsSearchVisible` | `bool` | two-way | Shows the find bar. Hiding it clears the search. |
 | `SearchResultCount` | `int` | read-only | The matches found so far. |

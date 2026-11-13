@@ -383,7 +383,19 @@ public class PdfViewTest : IAsyncLifetime
             return true;
         }
 
-        public IDispatcherTimer CreateTimer() => throw new NotSupportedException();
+        // Animations (the scroll indicator's fade, a fling) start timers; tests drive the view directly, so the timer
+        // never ticks.
+        public IDispatcherTimer CreateTimer() => new IdleTimer();
+    }
+
+    private sealed class IdleTimer : IDispatcherTimer
+    {
+        public TimeSpan Interval { get; set; }
+        public bool IsRepeating { get; set; }
+        public bool IsRunning { get; private set; }
+        public event EventHandler? Tick { add { } remove { } }
+        public void Start() => IsRunning = true;
+        public void Stop() => IsRunning = false;
     }
 
     [Fact]

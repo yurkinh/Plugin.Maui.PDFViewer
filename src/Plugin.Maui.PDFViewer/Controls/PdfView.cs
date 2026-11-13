@@ -102,6 +102,14 @@ public partial class PdfView : ContentView
         validateValue: (_, v) => (double)v >= 0,
         propertyChanged: (b, _, n) => { if (((PdfView)b).viewModel is { } vm) vm.MinZoom = (double)n; });
 
+    /// <summary>
+    /// Whether a thin scroll indicator appears at the edge while scrolling, showing where the view is in the
+    /// document; it fades out when scrolling stops. The default is true.
+    /// </summary>
+    public static readonly BindableProperty ShowScrollIndicatorProperty = BindableProperty.Create(
+        nameof(ShowScrollIndicator), typeof(bool), typeof(PdfView), true,
+        propertyChanged: (b, _, n) => { if (!(bool)n) ((PdfView)b).HideScrollIndicator(); });
+
     /// <summary>The page shadow, margin and crop. Null (the default) is the same as a new <see cref="PageAppearance"/>.</summary>
     public static readonly BindableProperty PageAppearanceProperty = BindableProperty.Create(
         nameof(PageAppearance), typeof(PageAppearance), typeof(PdfView),
@@ -160,6 +168,13 @@ public partial class PdfView : ContentView
 
     /// <inheritdoc cref="MinZoomProperty"/>
     public double MinZoom { get => (double)GetValue(MinZoomProperty); set => SetValue(MinZoomProperty, value); }
+
+    /// <inheritdoc cref="ShowScrollIndicatorProperty"/>
+    public bool ShowScrollIndicator
+    {
+        get => (bool)GetValue(ShowScrollIndicatorProperty);
+        set => SetValue(ShowScrollIndicatorProperty, value);
+    }
 
     /// <inheritdoc cref="PageAppearanceProperty"/>
     public PageAppearance? PageAppearance
@@ -431,8 +446,9 @@ public partial class PdfView : ContentView
     /// </summary>
     private void UpdatePageBackground()
     {
-        drawable.Background = BackgroundColor
-            ?? ((Application.Current?.RequestedTheme ?? AppTheme.Light) == AppTheme.Dark ? Color.FromArgb("#1E1E1E") : Colors.White);
+        var dark = (Application.Current?.RequestedTheme ?? AppTheme.Light) == AppTheme.Dark;
+        drawable.Background = BackgroundColor ?? (dark ? Color.FromArgb("#1E1E1E") : Colors.White);
+        drawable.IndicatorColor = dark ? Color.FromRgba(255, 255, 255, 115) : Color.FromRgba(0, 0, 0, 90);
         pageView?.Invalidate(); // null while the constructor runs
     }
 
@@ -525,6 +541,10 @@ public partial class PdfView : ContentView
 
     private void ShowDocument(ViewModel opened)
     {
+        // A new document: no fling carries over, and its first layout does not count as scrolling.
+        StopFling();
+        lastScroll = default;
+        HideScrollIndicator();
         viewModel = opened;
         body.BindingContext = opened;
         // A custom zoom belongs to the document it was chosen for; a new document starts fitted, unless the host
@@ -557,6 +577,7 @@ public partial class PdfView : ContentView
 
     private async Task CloseDocumentAsync()
     {
+        StopFling();
         if (viewModel is not { } old) return;
         viewModel = null;
         old.PropertyChanged -= OnViewModelChanged;
@@ -718,8 +739,84 @@ public partial class PdfView : ContentView
         }
         drawable.Placements = placements;
         DescribePage(vm);
+        UpdateScrollIndicator(vm);
         pageView.Invalidate();
         ScheduleBitmap(immediate: newContent);
+    }
+
+    // ---- Scroll indicator and momentum --------------------------------------------------------------------------
+
+    private ScrollState lastScroll;
+    private double scrolledAt;
+    private bool indicatorFading;
+
+    private ScrollState ScrollStateOf(ViewModel vm)
+    {
+        if (DisplayMode == DisplayMode.Continuous && vm.Continuous is { } strip)
+            return new ScrollState(strip.ScrollX, strip.ScrollY, strip.MaxScrollX, strip.MaxScrollY, strip.ContentWidth, strip.ContentHeight);
+        var page = vm.Layout;
+        return new ScrollState(page.ScrollX, page.ScrollY, page.MaxScrollX, page.MaxScrollY, page.ContentWidth, page.ContentHeight);
+    }
+
+    // Shows the indicators when the content moved (a drag, a fling, a zoom, a jump to a page), not when it first
+    // appears, and fades them out once it rests.
+    private void UpdateScrollIndicator(ViewModel vm)
+    {
+        var state = ScrollStateOf(vm);
+        var moved = lastScroll.CanScroll && (state.ScrollX, state.ScrollY) != (lastScroll.ScrollX, lastScroll.ScrollY);
+        lastScroll = state;
+        drawable.Scroll = state;
+        if (!moved || !ShowScrollIndicator || !state.CanScroll) return;
+        scrolledAt = GestureClock.NowMs;
+        drawable.IndicatorOpacity = 1;
+        if (indicatorFading) return;
+        indicatorFading = true;
+        Dispatcher.StartTimer(TimeSpan.FromMilliseconds(33), () =>
+        {
+            var opacity = ShowScrollIndicator ? ScrollIndicator.Opacity(GestureClock.NowMs - scrolledAt) : 0;
+            if (opacity == drawable.IndicatorOpacity && opacity == 1) return true; // still scrolling
+            drawable.IndicatorOpacity = opacity;
+            pageView.Invalidate();
+            if (opacity > 0) return true;
+            indicatorFading = false;
+            return false;
+        });
+    }
+
+    private void HideScrollIndicator()
+    {
+        drawable.IndicatorOpacity = 0;
+        pageView?.Invalidate();
+    }
+
+    private readonly FlingTracker flingTracker = new();
+    private int flingVersion;
+
+    private void StopFling() => flingVersion++;
+
+    // Keeps the content moving after a drag, slowing down, until it stops, reaches an edge or is touched again.
+    private void StartFling((double X, double Y) velocity)
+    {
+        var version = ++flingVersion;
+        var v = Fling.Clamp(velocity);
+        var last = GestureClock.NowMs;
+        Dispatcher.StartTimer(TimeSpan.FromMilliseconds(16), () =>
+        {
+            if (version != flingVersion || viewModel is not { } vm) return false;
+            var now = GestureClock.NowMs;
+            var dt = now - last;
+            last = now;
+            if (dt <= 0) return true;
+            var (dx, dy) = Fling.Distance(v, dt);
+            v = Fling.Decay(v, dt);
+            var before = ScrollStateOf(vm);
+            vm.PanBy(dx, dy);
+            var after = ScrollStateOf(vm);
+            // An edge stops the fling along that axis.
+            if (after.ScrollX == before.ScrollX) v = (0, v.Y);
+            if (after.ScrollY == before.ScrollY) v = (v.X, 0);
+            return Fling.IsMoving(v);
+        });
     }
 
     // ---- Bitmap cache -----------------------------------------------------------------------------------------
@@ -764,6 +861,16 @@ public partial class PdfView : ContentView
             ? bitmaps.Detail is null
             : bitmaps.Detail is { } detail && ReferenceEquals(detail.Page, page) && detail.Scale == plan.Scale &&
               detail.Region.Contains(visible);
+        // A page without any bitmap of its current rendering is blank. Its first backdrop does not depend on the
+        // scroll position, so it is made once and kept even while the view moves on (a fling): otherwise every frame
+        // would supersede it and pages scrolling in would stay blank until the motion stops.
+        var firstBackdrop = !keepBackdrop && (bitmaps.Backdrop is null || !ReferenceEquals(bitmaps.Backdrop.Page, page));
+        var claimed = firstBackdrop && firstBackdropsInFlight.Add(page);
+        if (firstBackdrop && !claimed)
+        {
+            keepBackdrop = true; // already being made
+            if (keepDetail) return;
+        }
         if (keepBackdrop && keepDetail) return;
 
         PageBitmap? newBackdrop = null, newDetail = null;
@@ -778,8 +885,12 @@ public partial class PdfView : ContentView
             // Out of memory or a platform failure: keep what is cached, and draw from the display list without one.
             drawable.ReplayWithoutBitmap = true;
         }
-        // Superseded, or the page left the view or was re-rendered while drawing: throw the result away.
-        if (version != bitmapVersion || !drawable.Bitmaps.TryGetValue(placement.Page, out var current) ||
+        finally
+        {
+            if (claimed) firstBackdropsInFlight.Remove(page);
+        }
+        // The page left the view or was re-rendered while drawing: throw the result away.
+        if (!drawable.Bitmaps.TryGetValue(placement.Page, out var current) ||
             !ReferenceEquals(current, bitmaps) ||
             drawable.Placements.FirstOrDefault(p => p.Page == placement.Page)?.Rendered?.Content is not { } shown ||
             !ReferenceEquals(shown, page))
@@ -788,10 +899,28 @@ public partial class PdfView : ContentView
             newDetail?.Dispose();
             return;
         }
+        // Superseded by a move or zoom: a detail is for a place that may be out of view now, and a replacement
+        // backdrop may be at the wrong scale; a first backdrop is kept (drawn stretched until the next plan).
+        if (version != bitmapVersion)
+        {
+            newDetail?.Dispose();
+            newDetail = null;
+            keepDetail = true;
+            if (!claimed)
+            {
+                newBackdrop?.Dispose();
+                newBackdrop = null;
+                keepBackdrop = true;
+            }
+            if (keepBackdrop && keepDetail) return;
+        }
         if (!keepBackdrop) Replace(bitmaps.Backdrop, newBackdrop, b => bitmaps.Backdrop = b);
         if (!keepDetail) Replace(bitmaps.Detail, newDetail, b => bitmaps.Detail = b);
         pageView.Invalidate();
     }
+
+    // Pages whose first backdrop is being made, so moving the view does not start the same work again every frame.
+    private readonly HashSet<PdfDisplayList> firstBackdropsInFlight = new(ReferenceEqualityComparer.Instance);
 
     // Safe to dispose at once: drawing also happens on this (UI) thread.
     private static void Replace(PageBitmap? old, PageBitmap? replacement, Action<PageBitmap?> set)
@@ -852,7 +981,11 @@ public partial class PdfView : ContentView
         pinch.PinchUpdated += (_, e) =>
         {
             // Scale is the change since the previous update; ScaleOrigin is relative to the view's size.
-            if (e.Status == GestureStatus.Started) CancelPress();
+            if (e.Status == GestureStatus.Started)
+            {
+                CancelPress();
+                StopFling();
+            }
             if (e.Status == GestureStatus.Running)
                 viewModel?.ZoomAt(e.Scale, e.ScaleOrigin.X * view.Width, e.ScaleOrigin.Y * view.Height);
         };
@@ -864,6 +997,9 @@ public partial class PdfView : ContentView
             {
                 case GestureStatus.Started:
                     panX = panY = 0;
+                    StopFling();
+                    flingTracker.Reset();
+                    flingTracker.Add(GestureClock.NowMs, 0, 0);
                     if (!selectingByDrag) CancelPress(); // moving before the hold ends is a pan
                     break;
                 case GestureStatus.Running when selectingByDrag:
@@ -873,6 +1009,12 @@ public partial class PdfView : ContentView
                 case GestureStatus.Running:
                     viewModel?.PanBy(e.TotalX - panX, e.TotalY - panY);
                     (panX, panY) = (e.TotalX, e.TotalY);
+                    flingTracker.Add(GestureClock.NowMs, e.TotalX, e.TotalY);
+                    break;
+                case GestureStatus.Completed when !selectingByDrag:
+                    // Lifting a moving finger flings the content on.
+                    var velocity = flingTracker.Velocity(GestureClock.NowMs);
+                    if (Fling.ShouldStart(velocity)) StartFling(velocity);
                     break;
                 case GestureStatus.Completed or GestureStatus.Canceled:
                     selectingByDrag = false;
@@ -907,6 +1049,7 @@ public partial class PdfView : ContentView
         var pointer = new PointerGestureRecognizer();
         pointer.PointerPressed += (_, e) =>
         {
+            StopFling(); // a touch stops a fling, as in native scroll views
             if (e.GetPosition(view) is { } point) StartPress(point);
         };
         pointer.PointerReleased += (_, _) =>

@@ -25,6 +25,14 @@ internal sealed class PdfPageDrawable : IDrawable
     /// <summary>Whether pages cast a shadow.</summary>
     public bool ShadowEnabled { get; set; } = true;
 
+    /// <summary>The scroll position the indicators show.</summary>
+    public ScrollState Scroll { get; set; }
+
+    /// <summary>0 hides the scroll indicators; they fade out after scrolling stops.</summary>
+    public double IndicatorOpacity { get; set; }
+
+    public Color IndicatorColor { get; set; } = Color.FromRgba(0, 0, 0, 90);
+
     /// <summary>The search matches on a page, to highlight; null when nothing is searched.</summary>
     public Func<int, IReadOnlyList<SearchMatch>>? Matches { get; set; }
 
@@ -62,6 +70,18 @@ internal sealed class PdfPageDrawable : IDrawable
         canvas.FillColor = Background;
         canvas.FillRectangle(dirtyRect);
         foreach (var placement in Placements) DrawPage(canvas, placement);
+        DrawScrollIndicators(canvas, dirtyRect);
+    }
+
+    private void DrawScrollIndicators(ICanvas canvas, RectF bounds)
+    {
+        if (IndicatorOpacity <= 0) return;
+        canvas.FillColor = IndicatorColor.WithAlpha(IndicatorColor.Alpha * (float)IndicatorOpacity);
+        const float radius = ScrollIndicator.Thickness / 2;
+        if (ScrollIndicator.Vertical(Scroll, bounds.Width, bounds.Height) is { } vertical)
+            canvas.FillRoundedRectangle(vertical.X + bounds.X, vertical.Y + bounds.Y, vertical.Width, vertical.Height, radius);
+        if (ScrollIndicator.Horizontal(Scroll, bounds.Width, bounds.Height) is { } horizontal)
+            canvas.FillRoundedRectangle(horizontal.X + bounds.X, horizontal.Y + bounds.Y, horizontal.Width, horizontal.Height, radius);
     }
 
     private void DrawPage(ICanvas canvas, PagePlacement<PdfDisplayList> placement)

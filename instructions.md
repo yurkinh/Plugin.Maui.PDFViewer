@@ -56,7 +56,7 @@ external/Pdf/Src/.dotnet/dotnet workload install maui # MAUI 11.0.0
 
 ```bash
 dotnet build src/Plugin.Maui.PDFViewer.slnx                       # plugin, all targets (Windows only on Windows)
-dotnet test --project $PWD/tests/Plugin.Maui.PDFViewer.Tests/Plugin.Maui.PDFViewer.Tests.csproj   # 42 tests
+dotnet test --project $PWD/tests/Plugin.Maui.PDFViewer.Tests/Plugin.Maui.PDFViewer.Tests.csproj   # 50 tests
 dotnet build samples/Plugin.Maui.PDFViewer.Sample.slnx           # both samples
 ./pack-nuget.sh && ./tools/test-package-consumer.sh net11.0-android net11.0-ios net11.0-maccatalyst
 ```
@@ -201,6 +201,9 @@ Decision 2026-11-13: the defaults and the API an app touches first follow Maui.P
 - Defaults: `DisplayMode.Continuous`, `ZoomMode.FitWidth` (double-tap and a new document return to it),
   `ShowToolbar=false`, white behind the pages (`#1E1E1E` dark) unless `BackgroundColor` is set, a soft card shadow.
   A document shorter than the view starts at the top (left when horizontal), as Maui.PDFView's list does.
+- Scrolling: momentum after a drag (`Controls/Scrolling.cs`: `FlingTracker`, `Fling`, time constant 325 ms) and a
+  fading scroll indicator drawn on the page canvas (`ShowScrollIndicator`). While the view moves, a page's first
+  backdrop bitmap is kept even when superseded, so pages do not stay blank during a fling.
 - Same names: `MaxZoom`/`MinZoom` (multiples of fit width; fit page stays reachable), `PageChanged` and
   `PageChangedCommand` with `PageChangedEventArgs(CurrentPage, TotalPages)`, `PageAppearance` (`ShadowEnabled`,
   `Margin` default 8,4, `Crop` in PDF points). `Source` takes a string (path, http(s) URL or bundled file).
