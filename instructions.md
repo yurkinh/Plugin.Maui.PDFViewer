@@ -200,6 +200,7 @@ Decision 2026-11-13: the defaults and the API an app touches first follow Maui.P
 
 - Defaults: `DisplayMode.Continuous`, `ZoomMode.FitWidth` (double-tap and a new document return to it),
   `ShowToolbar=false`, white behind the pages (`#1E1E1E` dark) unless `BackgroundColor` is set, a soft card shadow.
+  A document shorter than the view starts at the top (left when horizontal), as Maui.PDFView's list does.
 - Same names: `MaxZoom`/`MinZoom` (multiples of fit width; fit page stays reachable), `PageChanged` and
   `PageChangedCommand` with `PageChangedEventArgs(CurrentPage, TotalPages)`, `PageAppearance` (`ShadowEnabled`,
   `Margin` default 8,4, `Crop` in PDF points). `Source` takes a string (path, http(s) URL or bundled file).
