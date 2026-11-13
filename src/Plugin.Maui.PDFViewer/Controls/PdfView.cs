@@ -42,9 +42,9 @@ public partial class PdfView : ContentView
     /// <summary>Number of pages in the open document, 0 when none is open.</summary>
     public static readonly BindableProperty PageCountProperty = PageCountKey.BindableProperty;
 
-    /// <summary>How the page is sized: fit page (default), fit width, or the zoom the user chose.</summary>
+    /// <summary>How the page is sized: fit width (the default), fit page, or the zoom the user chose.</summary>
     public static readonly BindableProperty ZoomModeProperty = BindableProperty.Create(
-        nameof(ZoomMode), typeof(ZoomMode), typeof(PdfView), ZoomMode.FitPage, BindingMode.TwoWay,
+        nameof(ZoomMode), typeof(ZoomMode), typeof(PdfView), ZoomMode.FitWidth, BindingMode.TwoWay,
         propertyChanged: (b, _, n) => { if (((PdfView)b).viewModel is { } vm) vm.ZoomMode = (ZoomMode)n; });
 
     private static readonly BindablePropertyKey IsLoadingKey = BindableProperty.CreateReadOnly(
@@ -60,9 +60,9 @@ public partial class PdfView : ContentView
     /// <summary>Why the document or the current page could not be shown, or null.</summary>
     public static readonly BindableProperty ErrorMessageProperty = ErrorMessageKey.BindableProperty;
 
-    /// <summary>One page at a time (the default), or all pages in one scrolling strip.</summary>
+    /// <summary>All pages in one scrolling strip (the default), or one page at a time.</summary>
     public static readonly BindableProperty DisplayModeProperty = BindableProperty.Create(
-        nameof(DisplayMode), typeof(DisplayMode), typeof(PdfView), DisplayMode.SinglePage, BindingMode.TwoWay,
+        nameof(DisplayMode), typeof(DisplayMode), typeof(PdfView), DisplayMode.Continuous, BindingMode.TwoWay,
         propertyChanged: (b, _, n) => ((PdfView)b).OnDisplayModeChanged((DisplayMode)n));
 
     /// <summary>
@@ -78,9 +78,10 @@ public partial class PdfView : ContentView
             ? Melville.Pdf.ViewerModel.ScrollOrientation.Horizontal
             : Melville.Pdf.ViewerModel.ScrollOrientation.Vertical;
 
-    /// <summary>Whether the navigation and zoom toolbar is shown.</summary>
+    /// <summary>Whether the built-in navigation and zoom toolbar is shown. Off by default: hosts usually bring their own
+    /// controls and use the public commands.</summary>
     public static readonly BindableProperty ShowToolbarProperty = BindableProperty.Create(
-        nameof(ShowToolbar), typeof(bool), typeof(PdfView), true);
+        nameof(ShowToolbar), typeof(bool), typeof(PdfView), false);
 
     /// <summary>
     /// The page, zoom and scroll position, two-way. The viewer updates it as the user moves around, so a host can
@@ -319,9 +320,9 @@ public partial class PdfView : ContentView
         body.Add(content, 0, 2);
         Content = body;
 
-        drawable.Background = BackgroundFor(Application.Current?.RequestedTheme ?? AppTheme.Light);
+        UpdatePageBackground();
         if (Application.Current is { } app)
-            app.RequestedThemeChanged += (_, e) => { drawable.Background = BackgroundFor(e.RequestedTheme); pageView.Invalidate(); };
+            app.RequestedThemeChanged += (_, _) => UpdatePageBackground();
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -344,8 +345,23 @@ public partial class PdfView : ContentView
         if (error.Handler is not null) error.SetSemanticFocus(); // needs the platform view
     }
 
-    private static Color BackgroundFor(AppTheme theme) =>
-        theme == AppTheme.Dark ? Color.FromArgb("#1E1E1E") : Color.FromArgb("#D9D9D9");
+    /// <summary>
+    /// Behind the pages: the view's <see cref="VisualElement.BackgroundColor"/> when set, otherwise white (dark grey in
+    /// the dark theme). Pages stand out by their shadow.
+    /// </summary>
+    private void UpdatePageBackground()
+    {
+        drawable.Background = BackgroundColor
+            ?? ((Application.Current?.RequestedTheme ?? AppTheme.Light) == AppTheme.Dark ? Color.FromArgb("#1E1E1E") : Colors.White);
+        pageView?.Invalidate(); // null while the constructor runs
+    }
+
+    /// <inheritdoc/>
+    protected override void OnPropertyChanged(string? propertyName = null)
+    {
+        base.OnPropertyChanged(propertyName);
+        if (propertyName == BackgroundColorProperty.PropertyName) UpdatePageBackground();
+    }
 
     private async void OnSourceChanged()
     {
@@ -415,7 +431,7 @@ public partial class PdfView : ContentView
         body.BindingContext = opened;
         // A custom zoom belongs to the document it was chosen for; a new document starts fitted, unless the host
         // asked for a saved position.
-        if (ZoomMode == ZoomMode.Custom) ZoomMode = ZoomMode.FitPage;
+        if (ZoomMode == ZoomMode.Custom) ZoomMode = ZoomMode.FitWidth;
         opened.ZoomMode = ZoomMode;
         opened.PropertyChanged += OnViewModelChanged;
         opened.PageSelector.PropertyChanged += OnPageSelectorChanged;
@@ -764,8 +780,8 @@ public partial class PdfView : ContentView
         doubleTap.Tapped += (_, e) =>
         {
             if (viewModel is not { } vm) return;
-            if (vm.ZoomMode != ZoomMode.FitPage)
-                vm.ZoomMode = ZoomMode.FitPage;
+            if (vm.ZoomMode != ZoomMode.FitWidth)
+                vm.ZoomMode = ZoomMode.FitWidth;
             else if (e.GetPosition(view) is { } point)
                 vm.ZoomAt(2, point.X, point.Y);
         };

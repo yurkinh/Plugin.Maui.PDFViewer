@@ -20,7 +20,7 @@ internal sealed class PdfPageDrawable : IDrawable
 {
     public IReadOnlyList<PagePlacement<PdfDisplayList>> Placements { get; set; } = [];
     public Color Background { get; set; } = Colors.LightGray;
-    public Color Shadow { get; set; } = Color.FromRgba(0, 0, 0, 0.25f);
+    public Color Shadow { get; set; } = Color.FromRgba(0, 0, 0, 0.12f);
 
     /// <summary>The search matches on a page, to highlight; null when nothing is searched.</summary>
     public Func<int, IReadOnlyList<SearchMatch>>? Matches { get; set; }
@@ -87,13 +87,27 @@ internal sealed class PdfPageDrawable : IDrawable
                 ReferenceEquals(match, CurrentMatch) ? CurrentMatchHighlight : MatchHighlight);
     }
 
+    /// <summary>
+    /// A soft shadow, like a card at 4dp elevation: layers that grow and fade outwards, offset downwards. Plain
+    /// rectangles rather than a blurred shadow, which is slow on some platforms while scrolling.
+    /// </summary>
+    private void DrawShadow(ICanvas canvas, float x, float y, float width, float height)
+    {
+        if (Shadow.Alpha <= 0) return;
+        const int layers = 4;
+        for (var i = layers; i >= 1; i--)
+        {
+            canvas.FillColor = Shadow.WithAlpha(Shadow.Alpha / layers);
+            canvas.FillRoundedRectangle(x - i * 0.5f, y - i * 0.25f + 1, width + i, height + i * 0.75f + 1, i);
+        }
+    }
+
     private void DrawContent(ICanvas canvas, PagePlacement<PdfDisplayList> placement)
     {
         var layout = placement.Layout;
         float x = (float)layout.OffsetX, y = (float)layout.OffsetY;
         float width = (float)layout.ContentWidth, height = (float)layout.ContentHeight;
-        canvas.FillColor = Shadow;
-        canvas.FillRectangle(x + 2, y + 3, width, height);
+        DrawShadow(canvas, x, y, width, height);
         // White until a bitmap is ready, and behind a detail bitmap that does not cover the view.
         canvas.FillColor = Colors.White;
         canvas.FillRectangle(x, y, width, height);

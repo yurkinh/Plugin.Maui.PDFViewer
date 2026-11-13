@@ -8,9 +8,9 @@ Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a P
 
 ## Features
 
-- **Display modes:** one page at a time, or **continuous scroll** through all pages, vertically or horizontally. Only the pages near the view are rendered.
-- **Gestures:** pinch to zoom around your fingers, drag to pan, double-tap to switch between the whole page and 2×.
-- **Toolbar:** first, previous, next and last page; a page number box; zoom in and out; fit page; fit width; single page or continuous scroll; find; layers. Hide it with `ShowToolbar="False"` to use your own controls with the public commands.
+- **Display modes:** **continuous scroll** through all pages (the default), vertically or horizontally, or one page at a time. Pages fit the width by default and sit on a white background with a soft shadow. Only the pages near the view are rendered.
+- **Gestures:** pinch to zoom around your fingers, drag to pan, double-tap to switch between fit width and 2×.
+- **Toolbar:** first, previous, next and last page; a page number box; zoom in and out; fit page; fit width; single page or continuous scroll; find; layers. It is off by default: turn it on with `ShowToolbar="True"`, or use your own controls with the public commands.
 - **Links:** tap a link to go to the page it points to, at the position it names. Web and mail links open in the browser or mail app. The `LinkTapped` event lets the app handle links itself.
 - **Search:** the Find button opens a find bar. Matches are highlighted on every page, the current one in orange, and the previous and next buttons step through them. Search starts at the current page and shows its progress.
 - **Selecting and copying text:** press and hold on a word to select it, then drag without lifting your finger to select more. A bar offers Copy and Select page, and a tap clears the selection.
@@ -70,13 +70,14 @@ Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfVi
 | `PasswordSource` | `IPasswordSource?` | | Supplies passwords for encrypted documents. Set it before `Source`. |
 | `PageNumber` | `int` | two-way | The page shown, starting at 1. |
 | `PageCount` | `int` | read-only | The number of pages, or 0 when no document is open. |
-| `ZoomMode` | `ZoomMode` | two-way | `FitPage` (the default), `FitWidth`, or `Custom` after zooming. |
-| `DisplayMode` | `DisplayMode` | two-way | `SinglePage` (the default) or `Continuous`. The toolbar button switches between them. |
+| `ZoomMode` | `ZoomMode` | two-way | `FitWidth` (the default), `FitPage`, or `Custom` after zooming. |
+| `DisplayMode` | `DisplayMode` | two-way | `Continuous` (the default) or `SinglePage`. The toolbar button switches between them. |
 | `ScrollOrientation` | `ScrollOrientation` | | In continuous mode: `Vertical` (the default) or `Horizontal`. This is MAUI's `ScrollView` enum; `Both` and `Neither` mean vertical. |
 | `ViewState` | `PdfViewState?` | two-way | The page, zoom mode, zoom and scroll. Set it before `Source` to open at a saved position. It works in both display modes. |
 | `IsLoading` | `bool` | read-only | True while a document is opening. |
 | `ErrorMessage` | `string?` | read-only | Why the document or the page could not be shown. |
-| `ShowToolbar` | `bool` | | Shows the built-in toolbar. The default is true. |
+| `ShowToolbar` | `bool` | | Shows the built-in toolbar. The default is false. |
+| `BackgroundColor` | `Color?` | | Behind the pages. When not set: white, or dark grey in the dark theme. |
 | `IsSearchVisible` | `bool` | two-way | Shows the find bar. Hiding it clears the search. |
 | `SearchResultCount` | `int` | read-only | The matches found so far. |
 | `CurrentSearchResult` | `int` | read-only | The match shown, counting from 1; 0 when there is none. |

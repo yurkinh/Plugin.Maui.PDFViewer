@@ -84,7 +84,7 @@
     </ContentPage.MenuBarItems>
 
     <!-- PasswordSource and ViewState before Source: the viewer reads both as soon as the source changes. -->
-    <pdf:PdfView x:Name="Viewer" AutomationId="Viewer.PdfView"
+    <pdf:PdfView x:Name="Viewer" AutomationId="Viewer.PdfView" ShowToolbar="True"
                    PasswordSource="{Binding PasswordSource}"
                    ViewState="{Binding ViewState}"
                    Source="{Binding Source}" />

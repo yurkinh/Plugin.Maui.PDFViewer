@@ -63,8 +63,9 @@ public class PdfViewTest : IAsyncLifetime
 
         sut.PageCount.Should().Be(0);
         sut.ViewState.Should().BeNull();
-        sut.DisplayMode.Should().Be(DisplayMode.SinglePage);
-        sut.ShowToolbar.Should().BeTrue();
+        sut.DisplayMode.Should().Be(DisplayMode.Continuous);
+        sut.ZoomMode.Should().Be(ZoomMode.FitWidth);
+        sut.ShowToolbar.Should().BeFalse();
         new[] { sut.FirstPageCommand, sut.PreviousPageCommand, sut.NextPageCommand, sut.LastPageCommand,
                 sut.ZoomInCommand, sut.ZoomOutCommand, sut.FitPageCommand, sut.FitWidthCommand }
             .Should().OnlyContain(c => !c.CanExecute(null));
@@ -96,6 +97,7 @@ public class PdfViewTest : IAsyncLifetime
     public async Task AViewStateSetBeforeTheSourceOpensTheDocumentThere()
     {
         var sut = NewView(new PdfViewState(4, ZoomMode.FitWidth, 1));
+        sut.DisplayMode = DisplayMode.SinglePage;
 
         await OpenAsync(sut, PdfSource.FromBytes(await PdfAsync(6)));
 
@@ -104,10 +106,39 @@ public class PdfViewTest : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AViewStateSetBeforeTheSourceOpensTheDocumentThereWhenScrolling()
+    {
+        var sut = NewView(new PdfViewState(4, ZoomMode.FitWidth, 1));
+        LayOut(sut, 400, 600);
+
+        await OpenAsync(sut, PdfSource.FromBytes(await PdfAsync(6)));
+
+        sut.DisplayMode.Should().Be(DisplayMode.Continuous);
+        sut.PageNumber.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task SearchingMovesToTheMatchWhenScrolling()
+    {
+        var sut = NewView();
+        LayOut(sut, 400, 300); // shorter than a page at fit width: the matches start out of view
+        using var bytes = new MemoryStream();
+        await new Links().WritePdfAsync(bytes);
+        await OpenAsync(sut, PdfSource.FromBytes(bytes.ToArray()));
+
+        (await sut.SearchAsync("back to PAGE 1")).Should().Be(3);
+
+        sut.PageNumber.Should().Be(2, "the first match after page 1 is shown");
+        sut.NextSearchResultCommand.Execute(null);
+        sut.PageNumber.Should().Be(3);
+    }
+
+    [Fact]
     public async Task SwitchingToContinuousKeepsThePage()
     {
         var sut = NewView();
         await OpenAsync(sut, PdfSource.FromBytes(await PdfAsync(6)));
+        sut.DisplayMode = DisplayMode.SinglePage;
         sut.PageNumber = 3;
 
         sut.DisplayMode = DisplayMode.Continuous;
@@ -170,8 +201,10 @@ public class PdfViewTest : IAsyncLifetime
     private async Task<PdfView> OpenLinksAsync()
     {
         var sut = NewView();
-        sut.ShowToolbar = false;
-        LayOut(sut, 612, 792); // fit page: scale 1, so view points are page points
+        // One page at fit page, scale 1: view points are page points.
+        sut.DisplayMode = DisplayMode.SinglePage;
+        sut.ZoomMode = ZoomMode.FitPage;
+        LayOut(sut, 612, 792);
         using var bytes = new MemoryStream();
         await new Links().WritePdfAsync(bytes);
         await OpenAsync(sut, PdfSource.FromBytes(bytes.ToArray()));

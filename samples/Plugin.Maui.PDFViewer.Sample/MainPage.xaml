@@ -14,8 +14,9 @@
     </ContentPage.ToolbarItems>
 
     <Grid RowDefinitions="*,Auto">
-        <!-- The whole viewer: toolbar, pinch/pan/double-tap, layers. Set ShowToolbar="False" to bring your own. -->
-        <pdf:PdfView Source="{Binding Source}" DisplayMode="Continuous"
+        <!-- The whole viewer: pages scroll continuously at fit width, with pinch/pan/double-tap and layers.
+             The built-in toolbar is off by default; this sample turns it on. -->
+        <pdf:PdfView Source="{Binding Source}" ShowToolbar="True"
                      PageNumber="{Binding PageNumber}"
                      PageCount="{Binding PageCount, Mode=OneWayToSource}" />
         <Label Grid.Row="1" Text="{Binding Status}" Margin="12,6" FontSize="13" />
