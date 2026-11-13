@@ -102,6 +102,11 @@ public partial class PdfView : ContentView
         validateValue: (_, v) => (double)v >= 0,
         propertyChanged: (b, _, n) => { if (((PdfView)b).viewModel is { } vm) vm.MinZoom = (double)n; });
 
+    /// <summary>The page shadow, margin and crop. Null (the default) is the same as a new <see cref="PageAppearance"/>.</summary>
+    public static readonly BindableProperty PageAppearanceProperty = BindableProperty.Create(
+        nameof(PageAppearance), typeof(PageAppearance), typeof(PdfView),
+        propertyChanged: (b, o, n) => ((PdfView)b).OnPageAppearanceChanged((PageAppearance?)o, (PageAppearance?)n));
+
     /// <summary>Executed with a <see cref="PageChangedEventArgs"/> whenever <see cref="PageChanged"/> is raised.</summary>
     public static readonly BindableProperty PageChangedCommandProperty = BindableProperty.Create(
         nameof(PageChangedCommand), typeof(ICommand), typeof(PdfView));
@@ -155,6 +160,38 @@ public partial class PdfView : ContentView
 
     /// <inheritdoc cref="MinZoomProperty"/>
     public double MinZoom { get => (double)GetValue(MinZoomProperty); set => SetValue(MinZoomProperty, value); }
+
+    /// <inheritdoc cref="PageAppearanceProperty"/>
+    public PageAppearance? PageAppearance
+    {
+        get => (PageAppearance?)GetValue(PageAppearanceProperty);
+        set => SetValue(PageAppearanceProperty, value);
+    }
+
+    private void OnPageAppearanceChanged(PageAppearance? old, PageAppearance? appearance)
+    {
+        if (old is not null) old.PropertyChanged -= OnPageAppearancePropertyChanged;
+        if (appearance is not null) appearance.PropertyChanged += OnPageAppearancePropertyChanged;
+        ApplyPageAppearance();
+    }
+
+    private void OnPageAppearancePropertyChanged(object? sender, PropertyChangedEventArgs e) => ApplyPageAppearance();
+
+    private void ApplyPageAppearance()
+    {
+        var appearance = PageAppearance;
+        drawable.ShadowEnabled = appearance?.ShadowEnabled ?? true;
+        if (viewModel is { } vm) ApplyPageAppearance(vm);
+        pageView?.Invalidate(); // null while the constructor runs
+    }
+
+    private void ApplyPageAppearance(ViewModel vm)
+    {
+        var m = PageAppearance?.Margin ?? PageAppearance.DefaultMargin;
+        var c = PageAppearance?.Crop ?? Thickness.Zero;
+        vm.PageMargin = new PageInsets(m.Left, m.Top, m.Right, m.Bottom);
+        vm.PageCrop = new PageInsets(c.Left, c.Top, c.Right, c.Bottom);
+    }
 
     /// <inheritdoc cref="PageChangedCommandProperty"/>
     public ICommand? PageChangedCommand
@@ -356,6 +393,7 @@ public partial class PdfView : ContentView
         var content = new Grid { Children = { pageView, spinner, error, CreateSelectionBar(), CreateLayersPanel() } };
         var toolbar = CreateToolbar();
         toolbar.SetBinding(IsVisibleProperty, static (PdfView v) => v.ShowToolbar, source: this);
+        content.Add(moreMenu);
         body = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star)] };
         body.Add(toolbar, 0, 0);
         body.Add(CreateSearchBar(), 0, 1);
@@ -495,6 +533,7 @@ public partial class PdfView : ContentView
         opened.ZoomMode = ZoomMode.ToModel();
         opened.MinZoom = MinZoom;
         opened.MaxZoom = MaxZoom;
+        ApplyPageAppearance(opened);
         opened.PropertyChanged += OnViewModelChanged;
         opened.PageSelector.PropertyChanged += OnPageSelectorChanged;
         PageCount = opened.PageCount;
@@ -581,12 +620,15 @@ public partial class PdfView : ContentView
     private void OnDisplayModeChanged(DisplayMode mode)
     {
         if (viewModel is { } vm) vm.DisplayMode = mode.ToModel();
-        if (displayModeButton is { } button)
-        {
-            // The button names the mode it switches to.
-            button.Text = mode == DisplayMode.Continuous ? "Pages" : "Scroll";
-            SemanticProperties.SetDescription(button, mode == DisplayMode.Continuous ? "Show one page at a time" : "Scroll through all pages");
-        }
+        UpdateDisplayModeButton(mode);
+    }
+
+    private void UpdateDisplayModeButton(DisplayMode mode)
+    {
+        if (displayModeButton is not { } button) return;
+        // The button names the mode it switches to.
+        button.Text = mode == DisplayMode.Continuous ? "One page at a time" : "Scroll all pages";
+        SemanticProperties.SetDescription(button, mode == DisplayMode.Continuous ? "Show one page at a time" : "Scroll through all pages");
     }
 
     private Button? displayModeButton;
@@ -711,7 +753,7 @@ public partial class PdfView : ContentView
     private async Task UpdatePageBitmapsAsync(PagePlacement<PdfDisplayList> placement, double density, long budget, int version)
     {
         var page = placement.Rendered!.Content;
-        var layout = placement.Layout;
+        var layout = placement.Layout.Uncropped(page.PageWidth, page.PageHeight); // bitmaps hold whole pages
         var plan = BitmapPlan.Compute(page.PageWidth, page.PageHeight, layout, pageView.Width, pageView.Height, density, budget);
         if (plan.BackdropScale <= 0) return;
         var visible = BitmapPlan.Visible(page.PageWidth, page.PageHeight, layout, pageView.Width, pageView.Height);
@@ -956,33 +998,17 @@ public partial class PdfView : ContentView
 
     private View CreateToolbar()
     {
-        // AutomationId can be set only once: pass `id` for buttons whose description changes later.
-        static Button MakeButton(string text, string description, string? id = null)
-        {
-            var button = new Button
-            {
-                // 44 x 44: the smallest comfortable touch target (Apple HIG; Android asks for 48dp).
-                Text = text, Padding = new Thickness(10, 4), MinimumWidthRequest = 44, MinimumHeightRequest = 44,
-                AutomationId = "PdfView." + (id ?? description.Replace(" ", "")),
-            };
-            SemanticProperties.SetDescription(button, description);
-            return button;
-        }
-
-        var first = MakeButton("|<", "First page");
-        first.Command = FirstPageCommand;
-        var previous = MakeButton("<", "Previous page");
+        var previous = ToolbarButton("‹", "Previous page");
         previous.Command = PreviousPageCommand;
-        var next = MakeButton(">", "Next page");
+        var next = ToolbarButton("›", "Next page");
         next.Command = NextPageCommand;
-        var last = MakeButton(">|", "Last page");
-        last.Command = LastPageCommand;
 
         var page = new Entry
         {
             // Minimum, not fixed, width so large accessibility text sizes still fit.
-            Keyboard = Keyboard.Numeric, MinimumWidthRequest = 56, MinimumHeightRequest = 44,
-            HorizontalTextAlignment = TextAlignment.Center, AutomationId = "PdfView.PageNumber",
+            Keyboard = Keyboard.Numeric, MinimumWidthRequest = 48, MinimumHeightRequest = 40, FontSize = 15,
+            HorizontalTextAlignment = TextAlignment.Center, VerticalOptions = LayoutOptions.Center,
+            AutomationId = "PdfView.PageNumber",
         };
         // A hint rather than a description or placeholder: Description breaks TalkBack's edit action on Android,
         // and Placeholder would compete with Hint for the same Android attribute.
@@ -993,29 +1019,117 @@ public partial class PdfView : ContentView
             converter: IntTextConverter.Instance);
         page.Completed += (_, _) => CommitPageEntry(page);
         page.Unfocused += (_, _) => CommitPageEntry(page);
-        var count = new Label { VerticalOptions = LayoutOptions.Center };
+        var count = new Label { VerticalOptions = LayoutOptions.Center, FontSize = 15, Margin = new Thickness(0, 0, 4, 0) };
         count.SetBinding(Label.TextProperty, static (ViewModel vm) => vm.PageCount, stringFormat: "of {0}");
+        count.SetAppThemeColor(Label.TextColorProperty, ToolbarText.Light, ToolbarText.Dark);
 
-        var zoomOut = MakeButton("−", "Zoom out");
+        var zoomOut = ToolbarButton("−", "Zoom out");
         zoomOut.Command = ZoomOutCommand;
-        var zoomIn = MakeButton("+", "Zoom in");
+        var zoomIn = ToolbarButton("+", "Zoom in");
         zoomIn.Command = ZoomInCommand;
-        var fitPage = MakeButton("Fit", "Fit page");
-        fitPage.Command = FitPageCommand;
-        var fitWidth = MakeButton("Width", "Fit width");
-        fitWidth.Command = FitWidthCommand;
+        var more = ToolbarButton("⋯", "More actions");
+        more.Clicked += (_, _) => SetMoreMenuVisible(!moreMenu.IsVisible);
 
-        displayModeButton = MakeButton("Scroll", "Scroll through all pages", id: "Displaymode");
-        displayModeButton.Clicked += (_, _) =>
+        CreateMoreMenu();
+
+        var navigation = new HorizontalStackLayout { Spacing = 0, Children = { previous, page, count, next } };
+        var zoom = new HorizontalStackLayout { Spacing = 0, Children = { zoomOut, zoomIn, more } };
+        var row = new Grid
+        {
+            ColumnDefinitions = [new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto)],
+            Padding = new Thickness(4, 2),
+        };
+        row.Add(navigation, 0);
+        row.Add(zoom, 2);
+        var bar = new Border { Content = row, StrokeThickness = 0, Padding = 0 };
+        bar.SetAppThemeColor(BackgroundColorProperty, Color.FromArgb("#F6F6F6"), Color.FromArgb("#262626"));
+        var divider = new BoxView { HeightRequest = 1, VerticalOptions = LayoutOptions.End };
+        divider.SetAppThemeColor(BoxView.ColorProperty, Color.FromArgb("#E0E0E0"), Color.FromArgb("#3A3A3A"));
+        return new Grid { Children = { bar, divider } };
+    }
+
+    private static readonly (Color Light, Color Dark) ToolbarText = (Color.FromArgb("#202020"), Color.FromArgb("#EDEDED"));
+
+    // A flat button with its own explicit style, so the app's implicit Button style (filled, coloured, large) does not
+    // apply. AutomationId can be set only once: pass `id` for buttons whose description changes later.
+    private static Button ToolbarButton(string text, string description, string? id = null)
+    {
+        var button = new Button
+        {
+            Style = ToolbarButtonStyle.Value, Text = text,
+            AutomationId = "PdfView." + (id ?? description.Replace(" ", "")),
+        };
+        button.SetAppThemeColor(Button.TextColorProperty, ToolbarText.Light, ToolbarText.Dark);
+        SemanticProperties.SetDescription(button, description);
+        return button;
+    }
+
+    private static readonly Lazy<Style> ToolbarButtonStyle = new(() =>
+    {
+        var style = new Style(typeof(Button))
+        {
+            Setters =
+            {
+                new Setter { Property = Button.BackgroundColorProperty, Value = Colors.Transparent },
+                new Setter { Property = Button.BorderWidthProperty, Value = 0.0 },
+                new Setter { Property = Button.CornerRadiusProperty, Value = 8 },
+                new Setter { Property = Button.FontSizeProperty, Value = 20.0 },
+                new Setter { Property = Button.PaddingProperty, Value = new Thickness(8, 0) },
+                // 44 x 44: the smallest comfortable touch target (Apple HIG; Android asks for 48dp).
+                new Setter { Property = MinimumWidthRequestProperty, Value = 44.0 },
+                new Setter { Property = MinimumHeightRequestProperty, Value = 44.0 },
+                new Setter { Property = Button.ShadowProperty, Value = null },
+            },
+        };
+        var disabled = new VisualState { Name = VisualStateManager.CommonStates.Disabled };
+        disabled.Setters.Add(new Setter { Property = OpacityProperty, Value = 0.35 });
+        var normal = new VisualState { Name = VisualStateManager.CommonStates.Normal };
+        normal.Setters.Add(new Setter { Property = OpacityProperty, Value = 1.0 });
+        var pressed = new VisualState { Name = "Pressed" }; // Button's pressed state, in the common states group
+        pressed.Setters.Add(new Setter { Property = OpacityProperty, Value = 0.6 });
+        var states = new VisualStateGroup { Name = nameof(VisualStateManager.CommonStates) };
+        states.States.Add(normal);
+        states.States.Add(disabled);
+        states.States.Add(pressed);
+        style.Setters.Add(new Setter { Property = VisualStateManager.VisualStateGroupsProperty, Value = new VisualStateGroupList { states } });
+        return style;
+    });
+
+    private Border moreMenu = null!;
+
+    // The actions that do not fit the toolbar row, in a menu under its right end.
+    private void CreateMoreMenu()
+    {
+        Button Item(string text, string description, Action act, string? id = null)
+        {
+            var button = ToolbarButton(text, description, id);
+            button.FontSize = 15;
+            button.HorizontalOptions = LayoutOptions.Fill;
+            button.Padding = new Thickness(16, 0);
+            button.Clicked += (_, _) =>
+            {
+                SetMoreMenuVisible(false);
+                act();
+            };
+            return button;
+        }
+
+        Button Command(string text, string description, ICommand command)
+        {
+            var button = Item(text, description, () => { });
+            button.Command = command;
+            return button;
+        }
+
+        displayModeButton = Item("", "", () =>
         {
             DisplayMode = DisplayMode == DisplayMode.Continuous ? DisplayMode.SinglePage : DisplayMode.Continuous;
             Announce(DisplayMode == DisplayMode.Continuous ? "Continuous scroll" : "One page at a time");
-        };
+        }, id: "Displaymode");
+        UpdateDisplayModeButton(DisplayMode);
 
-        var find = MakeButton("Find", "Find in document");
-        find.Clicked += (_, _) => IsSearchVisible = !IsSearchVisible;
-
-        var layers = MakeButton("Layers", "Show layers");
+        var find = Item("Find", "Find in document", () => IsSearchVisible = !IsSearchVisible);
+        var layers = Item("Layers", "Show layers", () => { });
         layers.SetBinding(IsVisibleProperty, static (ViewModel vm) => vm.Layers, converter: NotEmptyConverter.Instance);
         layers.Clicked += (_, _) =>
         {
@@ -1024,14 +1138,31 @@ public partial class PdfView : ContentView
             Announce(layersPanel.IsVisible ? "Layers shown" : "Layers hidden");
         };
 
-        return new FlexLayout
+        moreMenu = new Border
         {
-            Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap,
-            JustifyContent = Microsoft.Maui.Layouts.FlexJustify.Center,
-            AlignItems = Microsoft.Maui.Layouts.FlexAlignItems.Center,
-            Padding = new Thickness(4),
-            Children = { first, previous, page, count, next, last, zoomOut, zoomIn, fitPage, fitWidth, displayModeButton, find, layers },
+            IsVisible = false, StrokeThickness = 0, Padding = new Thickness(0, 4), Margin = new Thickness(0, 4, 8, 0),
+            HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.Start, MinimumWidthRequest = 200,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+            Shadow = new Shadow { Opacity = 0.3f, Radius = 12, Offset = new Point(0, 4) },
+            Content = new VerticalStackLayout
+            {
+                Children =
+                {
+                    Command("First page", "First page", FirstPageCommand),
+                    Command("Last page", "Last page", LastPageCommand),
+                    Command("Fit page", "Fit page", FitPageCommand),
+                    Command("Fit width", "Fit width", FitWidthCommand),
+                    displayModeButton, find, layers,
+                },
+            },
         };
+        moreMenu.SetAppThemeColor(BackgroundColorProperty, Colors.White, Color.FromArgb("#2D2D2D"));
+    }
+
+    private void SetMoreMenuVisible(bool visible)
+    {
+        moreMenu.IsVisible = visible;
+        Announce(visible ? "More actions shown" : "More actions hidden");
     }
 
     // ---- Selection ----------------------------------------------------------------------------------------------

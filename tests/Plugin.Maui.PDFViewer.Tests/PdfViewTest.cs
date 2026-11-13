@@ -469,4 +469,32 @@ public class PdfViewTest : IAsyncLifetime
         ftp.Should().Throw<ArgumentException>();
         PdfSource.FromUri(new Uri("https://example.com/a.pdf")).Should().NotBeNull(); // nothing is downloaded until opened
     }
+
+    [Fact]
+    public async Task ACroppedPageStillFollowsItsLinks()
+    {
+        var sut = NewView();
+        sut.DisplayMode = DisplayMode.SinglePage;
+        sut.ZoomMode = ZoomMode.FitPage;
+        sut.PageAppearance = new PageAppearance { Crop = new Thickness(50, 0, 0, 0) };
+        LayOut(sut, 562, 792); // the cropped page at scale 1
+        using var bytes = new MemoryStream();
+        await new Links().WritePdfAsync(bytes);
+        await OpenAsync(sut, PdfSource.FromBytes(bytes.ToArray()));
+
+        (await sut.FollowLinkAtAsync(50, 90)).Should().BeTrue(); // page point (100, 90): the first link, to page 3
+
+        sut.PageNumber.Should().Be(3);
+    }
+
+    [Fact]
+    public void PagesHaveAShadowAndAMarginAndNoCropByDefault()
+    {
+        var appearance = new PageAppearance();
+
+        appearance.ShadowEnabled.Should().BeTrue();
+        appearance.Margin.Should().Be(new Thickness(8, 4));
+        appearance.Crop.Should().Be(Thickness.Zero);
+        NewView().PageAppearance.Should().BeNull();
+    }
 }

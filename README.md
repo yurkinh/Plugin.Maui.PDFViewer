@@ -10,7 +10,8 @@ Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a P
 
 - **Display modes:** **continuous scroll** through all pages (the default), vertically or horizontally, or one page at a time. Pages fit the width by default and sit on a white background with a soft shadow. Only the pages near the view are rendered.
 - **Gestures:** pinch to zoom around your fingers, drag to pan, double-tap to switch between fit width and 2×.
-- **Toolbar:** first, previous, next and last page; a page number box; zoom in and out; fit page; fit width; single page or continuous scroll; find; layers. It is off by default: turn it on with `ShowToolbar="True"`, or use your own controls with the public commands.
+- **Toolbar:** one compact row with previous and next page, a page number box, zoom out and in, and a "⋯" menu with first and last page, fit page, fit width, single page or continuous scroll, find and layers. It has its own flat style, whatever the app's Button style. It is off by default: turn it on with `ShowToolbar="True"`, or use your own controls with the public commands.
+- **Page appearance:** a soft shadow, the space around pages and a crop (`PageAppearance`).
 - **Links:** tap a link to go to the page it points to, at the position it names. Web and mail links open in the browser or mail app. The `LinkTapped` event lets the app handle links itself.
 - **Search:** the Find button opens a find bar. Matches are highlighted on every page, the current one in orange, and the previous and next buttons step through them. Search starts at the current page and shows its progress.
 - **Selecting and copying text:** press and hold on a word to select it, then drag without lifting your finger to select more. A bar offers Copy and Select page, and a tap clears the selection.
@@ -86,6 +87,7 @@ Apps that use .NET MAUI 10's implicit (global) XAML namespaces can write `<PdfVi
 | `ErrorMessage` | `string?` | read-only | Why the document or the page could not be shown. |
 | `ShowToolbar` | `bool` | | Shows the built-in toolbar. The default is false. |
 | `BackgroundColor` | `Color?` | | Behind the pages. When not set: white, or dark grey in the dark theme. |
+| `PageAppearance` | `PageAppearance?` | | `ShadowEnabled` (default true), `Margin` around every page while scrolling (default `8,4`: 8 between pages and at the sides, 4 at the ends) and `Crop` in PDF points, off every side of every page (default none). Changes apply at once. |
 | `IsSearchVisible` | `bool` | two-way | Shows the find bar. Hiding it clears the search. |
 | `SearchResultCount` | `int` | read-only | The matches found so far. |
 | `CurrentSearchResult` | `int` | read-only | The match shown, counting from 1; 0 when there is none. |
@@ -130,6 +132,18 @@ Without a handler, links within the document go to their page and keep the zoom.
 
 The viewer reads the link destinations PDF defines: explicit destinations, named destinations, and GoTo, URI and Named (next, previous, first and last page) actions. Links to other files (GoToR), launch actions, JavaScript and form actions are ignored.
 
+### Page appearance
+
+```xml
+<pdf:PdfView Source="manual.pdf">
+    <pdf:PdfView.PageAppearance>
+        <pdf:PageAppearance Margin="16,8" ShadowEnabled="False" Crop="0,36" />
+    </pdf:PdfView.PageAppearance>
+</pdf:PdfView>
+```
+
+`Crop="0,36"` hides half an inch at the top and bottom of every page. Links, search, selection and `ViewState` still use the page's own coordinates.
+
 ### Saving the reading position
 
 ```csharp
@@ -153,6 +167,22 @@ public sealed class AskForPassword : IPasswordSource
 ```
 
 `DisplayPromptAsync` cannot mask what is typed. The sample app has a small modal page that does.
+
+## Coming from Maui.PDFView
+
+[Maui.PDFView](https://github.com/vitalii-vov/Maui.PDFView) (`Vitvov.Maui.PDFView`) uses each platform's own PDF viewer; this plugin renders the same way everywhere and adds search, text selection, links on every platform, passwords, layers and saved positions. The defaults look the same: pages scroll continuously at fit width on a white background, with no toolbar.
+
+| Maui.PDFView | Plugin.Maui.PDFViewer |
+|---|---|
+| `.UseMauiPdfView()` | `.UseMauiPdf()` |
+| `xmlns:pdf="clr-namespace:Maui.PDFView;assembly=Maui.PDFView"` | `xmlns:pdf="https://github.com/yurkinh/Plugin.Maui.PDFViewer"` |
+| `Uri="{Binding PdfPath}"` (a file path) | `Source="{Binding PdfPath}"`: a path, an `http(s)` URL or a bundled file name, or a `PdfSource` |
+| `IsHorizontal="True"` | `ScrollOrientation="Horizontal"` |
+| `MaxZoom="4"` | `MaxZoom="4"` (and `MinZoom`) |
+| `PageIndex` (from 0, two-way) | `PageNumber` (from 1, two-way) |
+| `PageChangedCommand` with `CurrentPage`, `TotalPages` | `PageChangedCommand` or the `PageChanged` event, with `PageChangedEventArgs(CurrentPage, TotalPages)` |
+| `PageAppearance` with `ShadowEnabled`, `Margin`, `Crop` | `PageAppearance` with `ShadowEnabled`, `Margin`, `Crop` (crop in PDF points) |
+| `AssetPdfSource`, `FilePdfSource`, `ByteArrayPdfSource`, `HttpPdfSource` (each makes a temporary file) | `PdfSource.FromEmbeddedResource`, `FromFile`, `FromBytes`, `FromUri`: read directly, no temporary file |
 
 ## Platform notes
 

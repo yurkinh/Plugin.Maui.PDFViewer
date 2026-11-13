@@ -56,7 +56,7 @@ external/Pdf/Src/.dotnet/dotnet workload install maui # MAUI 11.0.0
 
 ```bash
 dotnet build src/Plugin.Maui.PDFViewer.slnx                       # plugin, all targets (Windows only on Windows)
-dotnet test --project $PWD/tests/Plugin.Maui.PDFViewer.Tests/Plugin.Maui.PDFViewer.Tests.csproj   # 32 tests
+dotnet test --project $PWD/tests/Plugin.Maui.PDFViewer.Tests/Plugin.Maui.PDFViewer.Tests.csproj   # 42 tests
 dotnet build samples/Plugin.Maui.PDFViewer.Sample.slnx           # both samples
 ./pack-nuget.sh && ./tools/test-package-consumer.sh net11.0-android net11.0-ios net11.0-maccatalyst
 ```
@@ -65,7 +65,7 @@ dotnet build samples/Plugin.Maui.PDFViewer.Sample.slnx           # both samples
 - Fork tests (renderer, view model, data model) run in the fork's `Src` folder:
   ```bash
   cd external/Pdf/Src
-  .dotnet/dotnet test --project $PWD/Melville.Pdf.ViewerModel.Tests/Melville.Pdf.ViewerModel.Tests.csproj -p:MelvilleSkipCopyPackage=true   # 194 (net10+net11)
+  .dotnet/dotnet test --project $PWD/Melville.Pdf.ViewerModel.Tests/Melville.Pdf.ViewerModel.Tests.csproj -p:MelvilleSkipCopyPackage=true   # 210 (net10+net11)
   .dotnet/dotnet test --project $PWD/Melville.Pdf.MauiGraphics.Tests/Melville.Pdf.MauiGraphics.Tests.csproj -p:MelvilleSkipCopyPackage=true # 1,496
   LC_ALL=en_US.UTF-8 .dotnet/dotnet test --project $PWD/Melville.Pdf.DataModelTests/Melville.Pdf.DataModelTests.csproj -p:MelvilleSkipCopyPackage=true
   ```
@@ -193,7 +193,29 @@ unattended (the start line says `dynamic-code=False` for a Native AOT build).
 
 .NET 10 on the Motorola for comparison: 260 ms record, 49 s smoke test, 32 s search.
 
-## 8. Known problems and gotchas
+## 8. Look and API: following Maui.PDFView
+
+Decision 2026-11-13: the defaults and the API an app touches first follow Maui.PDFView
+(`https://github.com/vitalii-vov/Maui.PDFView`, fork at `yurkinh/Maui.PDFView`), so apps can switch easily.
+
+- Defaults: `DisplayMode.Continuous`, `ZoomMode.FitWidth` (double-tap and a new document return to it),
+  `ShowToolbar=false`, white behind the pages (`#1E1E1E` dark) unless `BackgroundColor` is set, a soft card shadow.
+- Same names: `MaxZoom`/`MinZoom` (multiples of fit width; fit page stays reachable), `PageChanged` and
+  `PageChangedCommand` with `PageChangedEventArgs(CurrentPage, TotalPages)`, `PageAppearance` (`ShadowEnabled`,
+  `Margin` default 8,4, `Crop` in PDF points). `Source` takes a string (path, http(s) URL or bundled file).
+- Public types are ours (`ZoomMode`, `DisplayMode`, `PdfViewState` in `Controls/PdfViewTypes.cs`, mapped to the
+  viewer model's); apps never import `Melville.*` for everyday use. Still Melville: `IPasswordSource` and the font
+  mapper option.
+- The fork implements zoom limits, page margins and crop in `Melville.Pdf.ViewerModel` (`MinZoom`, `MaxZoom`,
+  `PageMargin`, `PageCrop`, `PageInsets`; `PageLayout.OriginX/OriginY` is the page point at a cropped page's corner
+  and `Uncropped()` gives the whole page for drawing), and guesses substitute fonts from their names
+  (`SubstituteDefaultFont.MapFontName`: "Times New Roman,Bold" becomes Times-Bold, not a sans).
+- The toolbar is one row (previous, page box, next, zoom out/in, "⋯" menu with the rest) with an explicit style, so
+  the app's implicit Button style does not apply.
+- Side-by-side check: build Maui.PDFView's `Example` for `net11.0-android` with this package from `artifacts/nuget`
+  and a second Shell tab showing our `PdfView` on the same file.
+
+## 9. Known problems and gotchas
 
 - MAUI 11's XAML source generator fails (MAUIG1001 "not a valid resource path") when the project path goes through a
   symlink, e.g. macOS's `/var` → `/private/var` from `mktemp`. Build from a physical path (`pwd -P`).
@@ -208,7 +230,7 @@ unattended (the start line says `dynamic-code=False` for a Native AOT build).
 - Upstream items still open: draft PRs DrJohnMelville/Melville.Streams#1 (MixinGenerator crash on LF checkouts) and
   #2 (ParsingBuffer fix, patch 0004); issue DrJohnMelville/Pdf#45 (optional content without /Intent hidden but drawn).
 
-## 9. Not done yet
+## 10. Not done yet
 
 - Hand check on the iPhone: press-and-hold selection and Copy, the find bar, tapping links (Android was verified).
 - Windows: never run on a device (mouse-wheel scroll/zoom is compiled, untested).

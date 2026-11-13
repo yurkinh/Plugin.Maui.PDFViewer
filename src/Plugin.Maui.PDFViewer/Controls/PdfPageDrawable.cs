@@ -22,6 +22,9 @@ internal sealed class PdfPageDrawable : IDrawable
     public Color Background { get; set; } = Colors.LightGray;
     public Color Shadow { get; set; } = Color.FromRgba(0, 0, 0, 0.12f);
 
+    /// <summary>Whether pages cast a shadow.</summary>
+    public bool ShadowEnabled { get; set; } = true;
+
     /// <summary>The search matches on a page, to highlight; null when nothing is searched.</summary>
     public Func<int, IReadOnlyList<SearchMatch>>? Matches { get; set; }
 
@@ -63,11 +66,26 @@ internal sealed class PdfPageDrawable : IDrawable
 
     private void DrawPage(ICanvas canvas, PagePlacement<PdfDisplayList> placement)
     {
-        if (placement.Layout.Scale <= 0) return;
+        var layout = placement.Layout;
+        if (layout.Scale <= 0) return;
+        float x = (float)layout.OffsetX, y = (float)layout.OffsetY;
+        float width = (float)layout.ContentWidth, height = (float)layout.ContentHeight;
+        if (ShadowEnabled) DrawShadow(canvas, x, y, width, height);
+        // White until a bitmap is ready, and behind a detail bitmap that does not cover the view.
+        canvas.FillColor = Colors.White;
+        canvas.FillRectangle(x, y, width, height);
+        // A cropped page: draw the whole page, clipped to the part shown.
+        var cropped = layout.OriginX != 0 || layout.OriginY != 0;
+        if (cropped)
+        {
+            canvas.SaveState();
+            canvas.ClipRectangle(x, y, width, height);
+        }
         DrawContent(canvas, placement);
         DrawMatches(canvas, placement);
         if (Selection is { } selected && selected.Page == placement.Page)
-            DrawAreas(canvas, placement.Layout, selected.Areas, SelectionHighlight);
+            DrawAreas(canvas, layout, selected.Areas, SelectionHighlight);
+        if (cropped) canvas.RestoreState();
     }
 
     private static void DrawAreas(ICanvas canvas, PageLayout layout, IReadOnlyList<PageRect> areas, Color color)
@@ -75,8 +93,10 @@ internal sealed class PdfPageDrawable : IDrawable
         var scale = (float)layout.Scale;
         canvas.FillColor = color;
         foreach (var area in areas)
-            canvas.FillRectangle((float)(layout.OffsetX + area.X * scale), (float)(layout.OffsetY + area.Y * scale),
-                (float)area.Width * scale, (float)area.Height * scale);
+        {
+            var (x, y) = layout.ToView(area.X, area.Y);
+            canvas.FillRectangle((float)x, (float)y, (float)area.Width * scale, (float)area.Height * scale);
+        }
     }
 
     private void DrawMatches(ICanvas canvas, PagePlacement<PdfDisplayList> placement)
@@ -104,14 +124,10 @@ internal sealed class PdfPageDrawable : IDrawable
 
     private void DrawContent(ICanvas canvas, PagePlacement<PdfDisplayList> placement)
     {
-        var layout = placement.Layout;
+        if (placement.Rendered?.Content is not { } page) return;
+        var layout = placement.Layout.Uncropped(page.PageWidth, page.PageHeight);
         float x = (float)layout.OffsetX, y = (float)layout.OffsetY;
         float width = (float)layout.ContentWidth, height = (float)layout.ContentHeight;
-        DrawShadow(canvas, x, y, width, height);
-        // White until a bitmap is ready, and behind a detail bitmap that does not cover the view.
-        canvas.FillColor = Colors.White;
-        canvas.FillRectangle(x, y, width, height);
-        if (placement.Rendered?.Content is not { } page) return;
 
         Bitmaps.TryGetValue(placement.Page, out var bitmaps);
         var backdrop = bitmaps?.Backdrop is { } b && ReferenceEquals(b.Page, page) ? b : null;
