@@ -17,7 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]   # Windows heads on Windows; iOS and Mac Catalyst heads on macOS
+        # Windows builds the Android and Windows heads; xcode-27 (macOS 27 with Xcode 27.2) all but Windows.
+        os: [windows-latest, xcode-27]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -30,22 +31,19 @@ jobs:
       with:
         global-json-file: global.json
 
-    # .NET 11's iOS and Mac Catalyst packs need Xcode 27.2 (MAUI 11.0.0). Use the newest Xcode on the runner, and skip
-    # the Apple builds (with a warning, not a false success) while the runner image has no Xcode 27.2.
-    - name: Select the newest Xcode
-      id: xcode
+    # .NET 11's iOS and Mac Catalyst packs (MAUI 11.0.0) need Xcode 27.2. The xcode-27 runner image has it, but its
+    # default is 27.1: select 27.2 (or newer) explicitly, and fail rather than build with an older Xcode.
+    - name: Select Xcode 27.2
       if: runner.os == 'macOS'
       shell: bash
       run: |
-        latest=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
-        sudo xcode-select -s "$latest"
+        xcode=$(ls -d /Applications/Xcode_27.2.app 2>/dev/null || ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+        sudo xcode-select -s "$xcode"
         version=$(xcodebuild -version | awk 'NR==1 {print $2}')
-        echo "Xcode $version"
-        if [ "$(printf '%s\n' 27.2 "$version" | sort -V | head -1)" = "27.2" ]; then
-          echo "apple=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "::warning::The runner has Xcode $version; MAUI 11.0.0 needs Xcode 27.2. iOS and Mac Catalyst builds are skipped."
-          echo "apple=false" >> "$GITHUB_OUTPUT"
+        echo "Using $xcode: Xcode $version"
+        if [ "$(printf '%s\n' 27.2 "$version" | sort -V | head -1)" != "27.2" ]; then
+          echo "::error::MAUI 11.0.0 needs Xcode 27.2; this runner has Xcode $version at most."
+          exit 1
         fi
 
     - name: Install .NET MAUI Workload
@@ -55,7 +53,5 @@ jobs:
       shell: bash
       run: ./external/Pdf/build-local-packages.sh
 
-    # On macOS the samples' iOS and Mac Catalyst heads need Xcode 27.2; Windows builds the Android and Windows heads.
     - name: Build
-      if: runner.os == 'Windows' || steps.xcode.outputs.apple == 'true'
       run: dotnet build samples/Plugin.Maui.PDFViewer.Sample.slnx -c Release

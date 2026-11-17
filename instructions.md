@@ -20,7 +20,7 @@ model or text layer needs it.
 | `tools/test-package-consumer.sh` | Creates a fresh MAUI 11 app, installs the package from `artifacts/nuget`, builds it. |
 | `tools/check-package.py`, `tools/check-bundled-versions.py`, `tools/project-closure.py` | Used by `pack-nuget.sh`. |
 | `tools/BuildSampleCorpus.cs` | File-based app that regenerates the TestApp's bundled PDFs (`Resources/Raw/samples`). |
-| `.github/workflows` | `ci.yml` (build, test, pack, Native AOT gate), `ci-sample.yml` (samples on Windows and macOS), `release-nuget.yml` (tag-driven publish). |
+| `.github/workflows` | `ci.yml` (build, test, pack on Windows; Native AOT gate on the `xcode-27` image), `ci-sample.yml` (samples on Windows and `xcode-27`), `release-nuget.yml` (tag-driven publish). |
 | `src/Plugin.Maui.PDFViewer/README.nuget.md` | The package's readme on nuget.org (packed as `README.md`). |
 | `CHANGELOG.md` | Release notes, linked from the package. |
 | `THIRD-PARTY-NOTICES.md` | Licenses of bundled code and fonts; packed into the package. |
@@ -147,9 +147,9 @@ On a Windows runner it builds the fork's local packages, runs the tests, packs w
 Checklist for the first release (`0.1.0-preview.1`):
 
 1. Windows validated (section 7, "Windows").
-2. `main` green: "Build for CI" (Windows build, tests, package). The macOS jobs skip iOS and Mac Catalyst with a
-   warning while GitHub's runners lack Xcode 27.2 (11.0.0 needs it), so run the Native AOT gate (section 3) locally
-   before tagging, and the Apple device checks in section 7.
+2. `main` green: "Build for CI" (Windows build, tests, package; the Native AOT gate) and "Build Sample App for CI"
+   (Windows; iOS and Mac Catalyst). The macOS jobs run on the `xcode-27` runner image (macOS 27), which has Xcode
+   27.2; `macos-latest` (macOS 26) tops out at Xcode 26.6. Then the Apple device checks in section 7.
 3. Download the `nuget-package` artifact of that CI run and check it: five target frameworks, `README.md`,
    `THIRD-PARTY-NOTICES.md`, the icon; optionally `./tools/test-package-consumer.sh` against it.
 4. `CHANGELOG.md`: replace "(unreleased)" with the date; commit.
@@ -311,5 +311,3 @@ Next, in order:
    - TalkBack/VoiceOver/Narrator runs; memory-pressure handling; CJK fonts (section 6).
    - The intermittent fork test `ANewPageStartsAtTheTopLeft` (checks the scroll just before the reset; a test timing
      issue, not the layout).
-   - CI: re-enable the iOS/Mac Catalyst sample builds and the Native AOT gate automatically once GitHub's macOS
-     runners have Xcode 27.2 (the workflows already detect it).
