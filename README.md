@@ -228,7 +228,7 @@ This repository follows the [Plugin.Maui.Feature](https://github.com/jfversluis/
 
 | Path | Contents |
 |---|---|
-| `src/Plugin.Maui.PDFViewer` | The plugin. Almost everything is shared, because pages are drawn with Maui.Graphics. The few platform files use the template's suffixes (`*.android.cs`, `*.macios.cs`). It also targets plain `net10.0`, for unit tests. |
+| `src/Plugin.Maui.PDFViewer` | The plugin. Almost everything is shared, because pages are drawn with Maui.Graphics. The few platform files use the template's suffixes (`*.android.cs`, `*.macios.cs`). It also targets plain `net11.0`, for unit tests. `README.nuget.md` is the package's readme on nuget.org. |
 | `samples/Plugin.Maui.PDFViewer.Sample` | The sample to copy from: one page with a `PdfView`. |
 | `samples/Plugin.Maui.PDFViewer.TestApp` | A diagnostics app: a library of bundled PDFs, a gallery of about 240 reference documents, timings, a smoke test, and an unattended run (`MELVILLE_AUTORUN=1`). |
 | `tests/Plugin.Maui.PDFViewer.Tests` | Tests of the control, and of the bundled sample PDFs. |

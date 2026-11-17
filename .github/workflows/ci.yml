@@ -18,13 +18,13 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: recursive
 
     # The SDK from global.json (.NET 11): the plugin, its tests and the samples target net11.0 only.
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         global-json-file: global.json
 
@@ -48,7 +48,7 @@ jobs:
       run: ./pack-nuget.sh
 
     - name: Upload package
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: nuget-package
         path: artifacts/nuget/Plugin.Maui.PDFViewer.*
@@ -59,30 +59,46 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: recursive
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         global-json-file: global.json
 
-    # .NET 11's iOS and Mac Catalyst packs need the newest Xcode (27.2 for 11.0.0); use the newest on the runner.
+    # .NET 11's iOS and Mac Catalyst packs need Xcode 27.2 (MAUI 11.0.0). Use the newest Xcode on the runner, and skip
+    # the Apple builds (with a warning, not a false success) while the runner image has no Xcode 27.2.
     - name: Select the newest Xcode
+      id: xcode
       if: runner.os == 'macOS'
+      shell: bash
       run: |
         latest=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
         sudo xcode-select -s "$latest"
-        xcodebuild -version
+        version=$(xcodebuild -version | awk 'NR==1 {print $2}')
+        echo "Xcode $version"
+        if [ "$(printf '%s\n' 27.2 "$version" | sort -V | head -1)" = "27.2" ]; then
+          echo "apple=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::The runner has Xcode $version; MAUI 11.0.0 needs Xcode 27.2. iOS and Mac Catalyst builds are skipped."
+          echo "apple=false" >> "$GITHUB_OUTPUT"
+        fi
 
+    # The whole MAUI workload: restoring the test app needs every platform it targets (Android too).
     - name: Install .NET MAUI Workload
-      run: dotnet workload install maui-maccatalyst
+      if: steps.xcode.outputs.apple == 'true'
+      run: dotnet workload install maui
 
     - name: Build Melville.StreamInterfaces into the fork's local feed
+      if: steps.xcode.outputs.apple == 'true'
       run: ./external/Pdf/build-local-packages.sh
 
+    # bash with pipefail: a failed publish fails the step (before, `| tee` hid it and the gate passed without running).
     - name: Native AOT publish of the test app, no IL warnings
+      if: steps.xcode.outputs.apple == 'true'
+      shell: bash
       run: |
         dotnet publish samples/Plugin.Maui.PDFViewer.TestApp/Plugin.Maui.PDFViewer.TestApp.csproj -f net11.0-maccatalyst -c Release \
           -p:RuntimeIdentifier=maccatalyst-arm64 -p:MelvilleNativeAot=true -p:CreatePackage=false | tee aot.log

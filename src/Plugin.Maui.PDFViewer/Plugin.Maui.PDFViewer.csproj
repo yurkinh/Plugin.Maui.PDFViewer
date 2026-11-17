@@ -28,15 +28,16 @@
 		<PackageProjectUrl>https://github.com/yurkinh/Plugin.Maui.PDFViewer</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/yurkinh/Plugin.Maui.PDFViewer</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageTags>dotnet-maui;maui;plugin;pdf;pdf-viewer;pdfview;android;ios;maccatalyst;windows</PackageTags>
+		<PackageTags>dotnet-maui;maui;plugin;pdf;pdf-viewer;pdfviewer;pdfview;pdf-renderer;viewer;android;ios;maccatalyst;windows;net11</PackageTags>
 		<IncludeSymbols>True</IncludeSymbols>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>
 		<EmbedUntrackedSources>true</EmbedUntrackedSources>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<Title>.NET MAUI PDF Viewer Plugin</Title>
-		<Description>Plugin.Maui.PDFViewer provides PdfView, a PDF viewer control for .NET MAUI on Android, iOS, Mac Catalyst and Windows: single page or continuous scroll, pinch zoom, pan, double-tap, page navigation, layers and passwords. Pages are rendered in pure .NET (Melville.Pdf) and drawn with Microsoft.Maui.Graphics; no native PDF libraries. Trim and Native AOT compatible.</Description>
+		<Description>PdfView, a PDF viewer control for .NET MAUI 11 on Android, iOS, Mac Catalyst and Windows: continuous or single-page scrolling with momentum, pinch and double-tap zoom, search, text selection and copy, links, layers, encrypted documents and saved reading positions. Pages are rendered in pure .NET (Melville.Pdf) and drawn with Microsoft.Maui.Graphics, so they look the same on every platform; no native PDF libraries. Trim and Native AOT compatible.</Description>
+		<PackageReleaseNotes>First preview. Changes: https://github.com/yurkinh/Plugin.Maui.PDFViewer/blob/main/CHANGELOG.md</PackageReleaseNotes>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+		<PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
 		<DebugType>portable</DebugType>
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
@@ -131,7 +132,9 @@
 	<!-- Package additions -->
 	<ItemGroup>
 		<None Include="..\..\nuget.png" PackagePath="icon.png" Pack="true" />
-		<None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+		<!-- The package's own readme (what app developers need; absolute links, since nuget.org does not resolve
+		     relative ones), packed as README.md. The repository README also covers building and the fork. -->
+		<None Include="README.nuget.md" Pack="true" PackagePath="README.md"/>
 		<None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\"/>
 	</ItemGroup>
 

@@ -1,6 +1,6 @@
 name: Create a (Pre)release on NuGet
 
-# Runs for tags like v1.0.0 or v1.0.0-preview1 (as in the Plugin.Maui.Feature template), but only when the
+# Runs for tags like v1.0.0, v1.0.0-preview1 or v0.1.0-preview.1 (the version style in Directory.Build.props), but only when the
 # repository variable PUBLISH_NUGET is 'true'; it also needs the secret NUGET_API_KEY. The tagged commit must be on
 # main. It publishes one package, Plugin.Maui.PDFViewer, with the Melville.Pdf assemblies bundled (see pack-nuget.sh),
 # and its symbols package.
@@ -10,6 +10,7 @@ on:
     tags:
     - "v[0-9]+.[0-9]+.[0-9]+"
     - "v[0-9]+.[0-9]+.[0-9]+-preview[0-9]+"
+    - "v[0-9]+.[0-9]+.[0-9]+-preview.[0-9]+"
 
 jobs:
   release-nuget:
@@ -17,12 +18,12 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
 
@@ -40,6 +41,14 @@ jobs:
         run: |
           $version="${{github.ref_name}}".TrimStart("v")
           "version-without-v=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Build Melville.StreamInterfaces into the fork's local feed
+        shell: bash
+        run: ./external/Pdf/build-local-packages.sh
+
+      # What CI checks on every push, again on the tagged commit before anything is published.
+      - name: Test
+        run: dotnet test --project tests\Plugin.Maui.PDFViewer.Tests\Plugin.Maui.PDFViewer.Tests.csproj -c Release
 
       - name: Pack
         shell: bash

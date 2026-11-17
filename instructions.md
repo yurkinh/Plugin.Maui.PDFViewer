@@ -21,6 +21,8 @@ model or text layer needs it.
 | `tools/check-package.py`, `tools/check-bundled-versions.py`, `tools/project-closure.py` | Used by `pack-nuget.sh`. |
 | `tools/BuildSampleCorpus.cs` | File-based app that regenerates the TestApp's bundled PDFs (`Resources/Raw/samples`). |
 | `.github/workflows` | `ci.yml` (build, test, pack, Native AOT gate), `ci-sample.yml` (samples on Windows and macOS), `release-nuget.yml` (tag-driven publish). |
+| `src/Plugin.Maui.PDFViewer/README.nuget.md` | The package's readme on nuget.org (packed as `README.md`). |
+| `CHANGELOG.md` | Release notes, linked from the package. |
 | `THIRD-PARTY-NOTICES.md` | Licenses of bundled code and fonts; packed into the package. |
 
 ### Fork projects the plugin uses (in `external/Pdf/Src`)
@@ -126,16 +128,43 @@ Fork rules:
 - Consequence for apps: don't also reference upstream's Melville.Pdf packages (duplicate assemblies).
 - CJK fonts are not shipped: the fork's `Melville.Pdf.FontLibrary.Cjk` `.ttc` fonts fail to load (EndOfStream, found
   in phase 0). Apps needing CJK supply their own `IDefaultFontMapper` via `UseMauiPdf(o => o.FontMapper = ...)`.
+### Package contents
+
+- The nuget.org readme is `src/Plugin.Maui.PDFViewer/README.nuget.md` (packed as `README.md`): what app developers
+  need, absolute links only (nuget.org does not resolve relative ones). The repository `README.md` is the full guide.
+  Keep the two in step when the API changes.
+- Release notes: `CHANGELOG.md` (linked from `PackageReleaseNotes`). No license acceptance prompt (MIT).
+- Only a package packed on **Windows** has all five target frameworks (`net11.0-windows10.0.19041.0` is built only
+  there). A package from this Mac has four; publish from CI, never from the Mac.
+
 ### Releasing
 
-Push a tag like `v0.1.0-preview1` or `v1.0.0` on a commit that is on `main`. The release workflow packs with that
-version and pushes the package and its symbols to nuget.org. It runs only when the repository variable
-`PUBLISH_NUGET` is `true` and the secret `NUGET_API_KEY` is set.
+The release workflow (`release-nuget.yml`) runs for tags `vX.Y.Z`, `vX.Y.Z-previewN` and `vX.Y.Z-preview.N` on a
+commit that is on `main`, when the repository variable `PUBLISH_NUGET` is `true` and the secret `NUGET_API_KEY` is set.
+On a Windows runner it builds the fork's local packages, runs the tests, packs with the tag's version and pushes
+`Plugin.Maui.PDFViewer.*.nupkg` with its `.snupkg` (never the fork's local Melville.Streams packages).
 
-- Nothing has been published yet; when to release is the owner's call.
-- `release-nuget.yml` pushes only `Plugin.Maui.PDFViewer.*.nupkg` (its `.snupkg` goes with it), never the fork's
-  local Melville.Streams packages that `artifacts/nuget` can also hold.
-- Without a tag, the version is `PluginVersion` in `Directory.Build.props` (currently `0.1.0-preview.1`).
+Checklist for the first release (`0.1.0-preview.1`):
+
+1. Windows validated (section 7, "Windows").
+2. `main` green: "Build for CI" (Windows build, tests, package). The macOS jobs skip iOS and Mac Catalyst with a
+   warning while GitHub's runners lack Xcode 27.2 (11.0.0 needs it), so run the Native AOT gate (section 3) locally
+   before tagging, and the Apple device checks in section 7.
+3. Download the `nuget-package` artifact of that CI run and check it: five target frameworks, `README.md`,
+   `THIRD-PARTY-NOTICES.md`, the icon; optionally `./tools/test-package-consumer.sh` against it.
+4. `CHANGELOG.md`: replace "(unreleased)" with the date; commit.
+5. GitHub repository settings: variable `PUBLISH_NUGET` = `true`; secret `NUGET_API_KEY`, a nuget.org key with
+   "Push new packages and package versions" for the glob `Plugin.Maui.PDFViewer`. (Or move to NuGet trusted
+   publishing, OIDC, which needs no long-lived key.) The ID `Plugin.Maui.PDFViewer` was free on 2026-11-17.
+6. Tag and push: `git tag v0.1.0-preview.1 && git push origin v0.1.0-preview.1`. The fork commit the submodule points
+   at must already be on GitHub.
+7. After nuget.org validates the package (minutes): check the readme renders, the symbols are indexed, and
+   `dotnet add package Plugin.Maui.PDFViewer --prerelease` works in a new MAUI 11 app. Create a GitHub release for the
+   tag with the CHANGELOG entry.
+
+Without a tag, the version is `PluginVersion` in `Directory.Build.props` (currently `0.1.0-preview.1`). Local test
+builds reuse that version, so after repacking delete `~/.nuget/packages/plugin.maui.pdfviewer/<version>` (and the
+consuming app's `obj`/`bin`) or the app keeps the cached copy.
 
 ## 7. Testing on devices
 
@@ -181,6 +210,34 @@ adb -s ZY22M6JJFZ shell am start -n $(adb -s ZY22M6JJFZ shell cmd package resolv
 
 `MELVILLE_AUTORUN=1 <app>/Contents/MacOS/Plugin.Maui.PDFViewer.TestApp` runs the diagnostics and smoke test
 unattended (the start line says `dynamic-code=False` for a Native AOT build).
+
+### Windows (not yet run; do this before the first release)
+
+One-time setup: .NET 11 SDK 11.0.100 (`global.json` falls back to the system SDK), `dotnet workload install maui`
+(or Visual Studio with the .NET MAUI workload), Git for Windows (its bash runs the `.sh` scripts, as CI does). Clone
+with `--recursive`. Then, from Git Bash:
+
+```bash
+./external/Pdf/build-local-packages.sh
+dotnet build src/Plugin.Maui.PDFViewer.slnx                    # now includes net11.0-windows10.0.19041.0
+dotnet test --project "$(pwd -W)/tests/Plugin.Maui.PDFViewer.Tests/Plugin.Maui.PDFViewer.Tests.csproj"
+dotnet build samples/Plugin.Maui.PDFViewer.Sample/Plugin.Maui.PDFViewer.Sample.csproj -t:Run -f net11.0-windows10.0.19041.0
+dotnet build samples/Plugin.Maui.PDFViewer.TestApp/Plugin.Maui.PDFViewer.TestApp.csproj -t:Run -f net11.0-windows10.0.19041.0
+./pack-nuget.sh                                                 # must report five target frameworks
+```
+
+Check by hand, in the Sample and the TestApp (Library, Gallery, Diagnostics with its smoke test, Viewer):
+
+- Documents open; continuous scroll and single page; fit width and fit page; window resize re-lays out.
+- Mouse wheel scrolls, Shift + wheel scrolls sideways, Ctrl + wheel zooms around the pointer; touchpad and
+  touch-screen drag (with momentum) and pinch; the scroll indicator appears and fades.
+- Double-click zooms; clicking a link goes to its page or opens the browser.
+- Toolbar (`ShowToolbar="True"`) and its "⋯" menu; keyboard commands; the find bar, matches and stepping.
+- Press and hold selects a word, drag extends it, Copy puts the text on the clipboard.
+- Dark theme; Narrator reads the page text; File > Open (`FilePicker`) and an encrypted PDF with the password page.
+- Diagnostics smoke test: 251 documents, no failures; note the timings next to the reference results below.
+
+Anything that fails: note it in section 10 with the document and steps.
 
 ### Reference results (2026-11-12, Release, .NET 11)
 
@@ -234,9 +291,25 @@ Decision 2026-11-13: the defaults and the API an app touches first follow Maui.P
 - Upstream items still open: draft PRs DrJohnMelville/Melville.Streams#1 (MixinGenerator crash on LF checkouts) and
   #2 (ParsingBuffer fix, patch 0004); issue DrJohnMelville/Pdf#45 (optional content without /Intent hidden but drawn).
 
-## 10. Not done yet
+## 10. Plan
 
-- Hand check on the iPhone: press-and-hold selection and Copy, the find bar, tapping links (Android was verified).
-- Windows: never run on a device (mouse-wheel scroll/zoom is compiled, untested).
-- TalkBack/VoiceOver/Narrator runs; memory-pressure handling; CJK fonts.
-- Publishing to nuget.org (section 6).
+Status 2026-11-17: the plugin is feature complete for a first preview, follows Maui.PDFView's look and API (section 8),
+and replaced Maui.PDFView in a production app (retargeted to .NET 11 on a local branch), verified on the Android
+emulator (Debug and Release) and the iOS simulator (Debug).
+
+Next, in order:
+
+1. **Windows validation** (section 7, "Windows"): build, tests, both samples, the package with five target frameworks,
+   and the hand checks. Fix what fails.
+2. **Apple checks**: the Native AOT gate locally; on the iPhone, press-and-hold selection and Copy, the find bar,
+   tapping links, momentum scrolling and the scroll indicator (Android was verified).
+3. **First release** `0.1.0-preview.1` (section 6, "Releasing").
+4. After the preview, as feedback comes in:
+   - A draggable scroll thumb (needs platform touch handling: MAUI's pan gesture does not report where a drag starts).
+   - The find and selection bars in the toolbar's flat style; left-aligned items in the "⋯" menu.
+   - Public types still from Melville: `IPasswordSource`, the font mapper option.
+   - TalkBack/VoiceOver/Narrator runs; memory-pressure handling; CJK fonts (section 6).
+   - The intermittent fork test `ANewPageStartsAtTheTopLeft` (checks the scroll just before the reset; a test timing
+     issue, not the layout).
+   - CI: re-enable the iOS/Mac Catalyst sample builds and the Native AOT gate automatically once GitHub's macOS
+     runners have Xcode 27.2 (the workflows already detect it).
