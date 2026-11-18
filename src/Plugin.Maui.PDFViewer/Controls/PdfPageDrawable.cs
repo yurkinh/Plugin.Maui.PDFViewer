@@ -225,7 +225,7 @@ internal sealed class PageBitmap : IDisposable
         int width = (int)Math.Ceiling(area.Width * pixelsPerPoint);
         int height = (int)Math.Ceiling(area.Height * pixelsPerPoint);
         if (width <= 0 || height <= 0 || (long)width * height > MaxPixels) return null;
-        var context = new PlatformBitmapExportService().CreateContext(width, height, 1);
+        var context = PdfPageDrawing.CreateBitmapContext(width, height);
         // White first: a region bitmap is drawn over the backdrop and must hide it.
         context.Canvas.FillColor = Colors.White;
         context.Canvas.FillRectangle(0, 0, width, height);

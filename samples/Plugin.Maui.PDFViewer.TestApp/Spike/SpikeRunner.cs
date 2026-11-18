@@ -28,7 +28,7 @@ public static class SpikeRunner
     {
         var rasterizer = new NativeRasterizer();
         var lines = new List<SpikeLine> { new("Backend", rasterizer.Name) };
-        using (var probe = new Microsoft.Maui.Graphics.Platform.PlatformBitmapExportService().CreateContext(4, 4, 1))
+        using (var probe = Plugin.Maui.PDFViewer.Rendering.PdfPageDrawing.CreateBitmapContext(4, 4))
         {
             var type = probe.Canvas.GetType();
             var chain = type.FullName + " : " + type.BaseType?.FullName;

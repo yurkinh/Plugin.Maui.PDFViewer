@@ -79,8 +79,7 @@ dotnet build samples/Plugin.Maui.PDFViewer.Sample.slnx           # both samples
   -f net11.0-maccatalyst -c Release -p:RuntimeIdentifier=maccatalyst-arm64 -p:MelvilleNativeAot=true
   -p:CreatePackage=false` must show no `warning IL`.
 - Windows code compiles on macOS with `-p:IncludeWindowsTfm=true -p:EnableWindowsTargeting=true` on a build of the
-  plugin project; the compile succeeds and a later `makepri.exe` step fails (Windows-only tool). It has never run on
-  Windows.
+  plugin project; the compile succeeds and a later `makepri.exe` step fails (Windows-only tool).
 
 ## 4. Build settings that matter (`Directory.Build.props`)
 
@@ -211,7 +210,7 @@ adb -s ZY22M6JJFZ shell am start -n $(adb -s ZY22M6JJFZ shell cmd package resolv
 `MELVILLE_AUTORUN=1 <app>/Contents/MacOS/Plugin.Maui.PDFViewer.TestApp` runs the diagnostics and smoke test
 unattended (the start line says `dynamic-code=False` for a Native AOT build).
 
-### Windows (not yet run; do this before the first release)
+### Windows (automated part and package run 2026-11-18; hand checks still open, see section 10)
 
 One-time setup: .NET 11 SDK 11.0.100 (`global.json` falls back to the system SDK), `dotnet workload install maui`
 (or Visual Studio with the .NET MAUI workload), Git for Windows (its bash runs the `.sh` scripts, as CI does). Clone
@@ -239,6 +238,18 @@ Check by hand, in the Sample and the TestApp (Library, Gallery, Diagnostics with
 
 Anything that fails: note it in section 10 with the document and steps.
 
+Building every target also needs the Android SDK platform for API 37 (XA5207 without it), and so does `pack-nuget.sh`.
+Python must be a real install: the Microsoft Store `python`/`python3` stubs break `pack-nuget.sh`.
+
+Unattended runs of the TestApp's Windows executable (`bin/<config>/net11.0-windows10.0.19041.0/win-x64`), with stdout
+redirected: `MELVILLE_AUTORUN=1` runs the diagnostics and smoke test; `MELVILLE_AUTORUN_CHECKS=1` opens the Checks tab,
+which runs the canvas checks and compares every reference document with SkiaSharp (`[FIDELITY]` lines).
+
+Win2D differences, handled in `Rendering/Win2DRendering.windows.cs`: `PlatformBitmapExportService` is not implemented;
+`ConcatenateTransform` post-concatenates; a second clip in one saved state throws; clips are intersected with the
+canvas size in user coordinates, so they are applied in device coordinates. `SemanticScreenReader.Announce` can throw
+`NullReferenceException` on Windows, so `PdfView.Announce` ignores failures.
+
 ### Reference results (2026-11-12, Release, .NET 11)
 
 | | Motorola | iPhone 13 | Mac Catalyst |
@@ -249,6 +260,9 @@ Anything that fails: note it in section 10 with the document and steps.
 | Search all 120 pages of the long sample | 5 s | not measured | |
 
 .NET 10 on the Motorola for comparison: 260 ms record, 49 s smoke test, 32 s search.
+
+Windows (2026-11-18, Release, x64 desktop): record a page of text 116 ms, smoke test 251 documents / 390 pages in 9 s,
+0 failures. Win2D defers drawing until the session ends, so its replay times are not comparable with the table.
 
 ## 8. Look and API: following Maui.PDFView
 
@@ -299,8 +313,13 @@ emulator (Debug and Release) and the iOS simulator (Debug).
 
 Next, in order:
 
-1. **Windows validation** (section 7, "Windows"): build, tests, both samples, the package with five target frameworks,
-   and the hand checks. Fix what fails.
+1. **Windows validation** (section 7, "Windows"). Done 2026-11-18: Windows build, 50 unit tests, both samples build,
+   smoke test, 240 reference documents compared with SkiaSharp (no exceptions), `pack-nuget.sh` with five target
+   frameworks, and in the Sample: opening, zoom buttons, page buttons, switching documents, window resize. Still open:
+   - The hand checks: wheel, touch and pinch, double-click, links, keyboard, find bar, selection and Copy, Narrator,
+     File > Open, the password page, and the TestApp's Library, Gallery and Viewer.
+   - Known difference: Win2D clips a miter join that exceeds the miter limit instead of bevelling it, so very sharp
+     corners overshoot (reference document `WpfLineRenderBug`, 6% of its pixels).
 2. **Apple checks**: the Native AOT gate locally; on the iPhone, press-and-hold selection and Copy, the find bar,
    tapping links, momentum scrolling and the scroll indicator (Android was verified).
 3. **First release** `0.1.0-preview.1` (section 6, "Releasing").

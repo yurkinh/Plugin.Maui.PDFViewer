@@ -12,5 +12,6 @@ public partial class AppShell : Shell
 		Routing.RegisterRoute(AppNavigation.ViewerRoute, typeof(ViewerPage));
 		// Unattended diagnostics run (see Diagnostics.AutoRun): start on the Diagnostics tab.
 		if (Diagnostics.AutoRun.Requested) Loaded += async (_, _) => await GoToAsync("//diagnostics");
+		else if (Diagnostics.AutoRun.ChecksRequested) Loaded += async (_, _) => await GoToAsync("//checks");
 	}
 }

@@ -15,8 +15,20 @@ public static class PdfPageDrawing
         AndroidImageFactory.Instance;
 #elif IOS || MACCATALYST
         AppleImageFactory.Instance;
+#elif WINDOWS
+        Win2DImageFactory.Instance;
 #else
-        PngImageFactory.Instance; // Windows: a Win2D factory is still to do
+        PngImageFactory.Instance;
+#endif
+
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+    /// <summary>An offscreen canvas of this size in pixels, whose image can be drawn on this platform's views.</summary>
+    public static BitmapExportContext CreateBitmapContext(int width, int height) =>
+#if WINDOWS
+        new Win2DBitmapContext(width, height);
+#else
+        new Microsoft.Maui.Graphics.Platform.PlatformBitmapExportService().CreateContext(width, height, 1);
+#endif
 #endif
 
     /// <summary>The backend differences to compensate for on this platform.</summary>
@@ -24,7 +36,7 @@ public static class PdfPageDrawing
 #if ANDROID
         AndroidPdfCanvas.Quirks;
 #else
-        CanvasQuirks.Default; // CoreGraphics is correct; Windows (Win2D) has not been measured yet
+        CanvasQuirks.Default; // CoreGraphics is correct; on Windows Win2DPdfCanvas compensates
 #endif
 
     /// <summary>
@@ -45,6 +57,8 @@ public static class PdfPageDrawing
         // Drawn on the native canvas under the ScalingCanvas, so its density becomes part of the transform.
         var (target, density) = AndroidPdfCanvas.Unwrap(canvas);
         page.Draw(target, ImageFactory, Quirks, placement * System.Numerics.Matrix3x2.CreateScale(density));
+#elif WINDOWS
+        Win2DPdfCanvas.Draw(page, canvas, ImageFactory, Quirks, placement);
 #else
         page.Draw(canvas, ImageFactory, Quirks, placement);
 #endif

@@ -62,7 +62,7 @@ public static class FidelityRunner
         var height = (int)(page.PageHeight * (width / page.PageWidth));
 
         byte[] native;
-        using (var context = new PlatformBitmapExportService().CreateContext(width, height, 1))
+        using (var context = PdfPageDrawing.CreateBitmapContext(width, height))
         {
             PdfPageDrawing.Draw(page, context.Canvas, width / page.PageWidth);
             using var png = new MemoryStream();

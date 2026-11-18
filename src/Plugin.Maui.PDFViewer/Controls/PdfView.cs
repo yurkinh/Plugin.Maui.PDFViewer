@@ -424,10 +424,17 @@ public partial class PdfView : ContentView
     }
 
     // Screen reader announcements; plain .NET (unit tests, tools) has no screen reader, and Essentials throws there.
+    // Never fatal: on Windows Essentials can throw NullReferenceException, which would abandon opening the document.
     private static void Announce(string text)
     {
 #if ANDROID || IOS || MACCATALYST || WINDOWS
-        SemanticScreenReader.Default.Announce(text);
+        try
+        {
+            SemanticScreenReader.Default.Announce(text);
+        }
+        catch (Exception)
+        {
+        }
 #endif
     }
 

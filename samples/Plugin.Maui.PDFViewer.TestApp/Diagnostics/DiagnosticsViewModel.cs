@@ -215,7 +215,7 @@ public sealed class DiagnosticsViewModel : ObservableObject
 
     private static (double First, double Average, double BitmapDraw, byte[] Png) ReplayNative(PdfDisplayList list, int width, int height)
     {
-        using var context = new PlatformBitmapExportService().CreateContext(width, height, 1);
+        using var context = PdfPageDrawing.CreateBitmapContext(width, height);
         var scale = width / list.PageWidth;
         var times = new double[Replays];
         for (int i = 0; i < Replays; i++)
@@ -227,7 +227,7 @@ public sealed class DiagnosticsViewModel : ObservableObject
             times[i] = watch.Elapsed.TotalMilliseconds;
         }
         // What a frame costs when the viewer draws its cached bitmap instead of replaying (pan, zoom, settled).
-        using var frame = new PlatformBitmapExportService().CreateContext(width, height, 1);
+        using var frame = PdfPageDrawing.CreateBitmapContext(width, height);
         var bitmapTimes = new double[Replays];
         for (int i = 0; i < Replays; i++)
         {
