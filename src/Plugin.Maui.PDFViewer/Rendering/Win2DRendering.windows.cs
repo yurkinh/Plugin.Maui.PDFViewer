@@ -176,6 +176,7 @@ internal sealed class Win2DBitmapContext : BitmapExportContext
     {
         EndDrawing();
         if (image is null) target.Dispose();
+        else image.Dispose();
         base.Dispose();
     }
 }
