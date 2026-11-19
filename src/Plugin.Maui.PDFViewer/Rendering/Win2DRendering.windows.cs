@@ -216,6 +216,7 @@ internal sealed class Win2DBitmapContext : BitmapExportContext
         // Pixels, whatever the display's scale: one canvas unit is one pixel, as on the other platforms.
         target = new CanvasRenderTarget(CanvasDevice.GetSharedDevice(), width, height, 96);
         session = target.CreateDrawingSession();
+        session.Clear(global::Windows.UI.Color.FromArgb(0, 0, 0, 0)); // a new render target's pixels are undefined
         canvas = new Win2DPdfCanvas(new PlatformCanvas
         {
             Session = session,
