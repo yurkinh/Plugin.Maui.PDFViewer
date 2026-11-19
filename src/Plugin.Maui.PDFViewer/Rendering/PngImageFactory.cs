@@ -8,7 +8,7 @@ namespace Plugin.Maui.PDFViewer.Rendering;
 
 /// <summary>
 /// Creates platform images by encoding the pixels as PNG and loading that. Works on every platform, but costs an
-/// encode and a decode; used where no native factory exists yet (Windows) and as a cross-check.
+/// encode and a decode; used where no native factory exists and as a cross-check.
 /// </summary>
 public sealed class PngImageFactory : IPdfImageFactory
 {

@@ -8,4 +8,7 @@ namespace Plugin.Maui.PDFViewer.TestApp.Diagnostics;
 public static class AutoRun
 {
     public static bool Requested { get; set; } = Environment.GetEnvironmentVariable("MELVILLE_AUTORUN") == "1";
+
+    /// <summary>MELVILLE_AUTORUN_CHECKS=1: start on the Checks tab, which runs the canvas and fidelity checks.</summary>
+    public static bool ChecksRequested { get; } = Environment.GetEnvironmentVariable("MELVILLE_AUTORUN_CHECKS") == "1";
 }

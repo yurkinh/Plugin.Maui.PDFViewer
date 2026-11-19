@@ -1,5 +1,6 @@
 using MauiGraphicsSpike;
 using Microsoft.Maui.Graphics.Platform;
+using Plugin.Maui.PDFViewer.Rendering;
 using SkiaSharp;
 using IImage = Microsoft.Maui.Graphics.IImage;
 
@@ -7,18 +8,16 @@ namespace Plugin.Maui.PDFViewer.TestApp.Spike;
 
 /// <summary>
 /// Runs the canvas checks on this platform's native Maui.Graphics backend (CoreGraphics on iOS and
-/// Mac Catalyst, Android Canvas, Win2D): draws offscreen with PlatformBitmapExportService, then reads
+/// Mac Catalyst, Android Canvas, Win2D): draws offscreen with PdfPageDrawing.CreateBitmapContext, then reads
 /// the pixels back through PNG with SkiaSharp.
 /// </summary>
 internal sealed class NativeRasterizer : ICanvasRasterizer
 {
-    private readonly PlatformBitmapExportService exporter = new();
-
-    public string Name => $"{DeviceInfo.Platform} native ({exporter.GetType().Name})";
+    public string Name => $"{DeviceInfo.Platform} native";
 
     public Pixels Render(int width, int height, Action<ICanvas> draw)
     {
-        using var context = exporter.CreateContext(width, height, 1);
+        using var context = PdfPageDrawing.CreateBitmapContext(width, height);
         var canvas = context.Canvas;
         canvas.FillColor = Colors.White;
         canvas.FillRectangle(0, 0, width, height);
