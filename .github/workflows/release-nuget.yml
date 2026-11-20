@@ -1,9 +1,13 @@
 name: Create a (Pre)release on NuGet
 
-# Runs for tags like v1.0.0, v1.0.0-preview1 or v0.1.0-preview.1 (the version style in Directory.Build.props), but only when the
-# repository variable PUBLISH_NUGET is 'true'; it also needs the secret NUGET_API_KEY. The tagged commit must be on
-# main. It publishes one package, Plugin.Maui.PDFViewer, with the Melville.Pdf assemblies bundled (see pack-nuget.sh),
-# and its symbols package.
+# Runs for tags like v1.0.0, v1.0.0-preview1 or v0.1.0-preview.1 (the version style in Directory.Build.props). The
+# tagged commit must be on main. It publishes one package, Plugin.Maui.PDFViewer, with the Melville.Pdf assemblies
+# bundled (see pack-nuget.sh), and its symbols package.
+#
+# Publishing uses NuGet trusted publishing (OIDC), no long-lived API key: nuget.org has a trusted publishing policy for
+# this repository and this workflow file (release-nuget.yml), and NuGet/login exchanges the job's GitHub token for a
+# short-lived nuget.org key. The job runs in the GitHub environment 'release', which holds the secret NUGET_USER (the
+# nuget.org profile name, not the email) and can require an approval before anything is published.
 
 on:
   push:
@@ -14,8 +18,11 @@ on:
 
 jobs:
   release-nuget:
-    if: vars.PUBLISH_NUGET == 'true'
     runs-on: windows-latest
+    environment: release
+    permissions:
+      id-token: write   # NuGet/login: the OIDC token for trusted publishing
+      contents: read
 
     steps:
       - uses: actions/checkout@v5
@@ -54,10 +61,17 @@ jobs:
         shell: bash
         run: PLUGIN_VERSION=${{ steps.get_version.outputs.version-without-v }} ./pack-nuget.sh
 
+      # Right before the push: the nuget.org key it returns lasts an hour.
+      - name: NuGet login (OIDC)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Push
         shell: bash
         run: |
           # Only the plugin: artifacts/nuget can also hold the fork's local Melville.Streams packages, which are not ours
           # to publish. The .snupkg next to it is pushed with it.
           dotnet nuget push artifacts/nuget/Plugin.Maui.PDFViewer.*.nupkg -s https://api.nuget.org/v3/index.json \
-            -k "${{ secrets.NUGET_API_KEY }}" --skip-duplicate
+            -k "${{ steps.login.outputs.NUGET_API_KEY }}" --skip-duplicate

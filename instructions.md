@@ -139,8 +139,9 @@ Fork rules:
 ### Releasing
 
 The release workflow (`release-nuget.yml`) runs for tags `vX.Y.Z`, `vX.Y.Z-previewN` and `vX.Y.Z-preview.N` on a
-commit that is on `main`, when the repository variable `PUBLISH_NUGET` is `true` and the secret `NUGET_API_KEY` is set.
-On a Windows runner it builds the fork's local packages, runs the tests, packs with the tag's version and pushes
+commit that is on `main`. It publishes with NuGet trusted publishing (OIDC): no API key is stored anywhere. The job
+runs in the GitHub environment `release` (secret `NUGET_USER`), and `NuGet/login` gets a one-hour nuget.org key for the
+push. On a Windows runner it builds the fork's local packages, runs the tests, packs with the tag's version and pushes
 `Plugin.Maui.PDFViewer.*.nupkg` with its `.snupkg` (never the fork's local Melville.Streams packages).
 
 Checklist for the first release (`0.1.0-preview.1`):
@@ -152,9 +153,10 @@ Checklist for the first release (`0.1.0-preview.1`):
 3. Download the `nuget-package` artifact of that CI run and check it: five target frameworks, `README.md`,
    `THIRD-PARTY-NOTICES.md`, the icon; optionally `./tools/test-package-consumer.sh` against it.
 4. `CHANGELOG.md`: replace "(unreleased)" with the date; commit.
-5. GitHub repository settings: variable `PUBLISH_NUGET` = `true`; secret `NUGET_API_KEY`, a nuget.org key with
-   "Push new packages and package versions" for the glob `Plugin.Maui.PDFViewer`. (Or move to NuGet trusted
-   publishing, OIDC, which needs no long-lived key.) The ID `Plugin.Maui.PDFViewer` was free on 2026-11-17.
+5. Trusted publishing. On nuget.org, Account → Trusted Publishing → Add policy: owner `yurkinh`, repository
+   `Plugin.Maui.PDFViewer`, workflow file `release-nuget.yml`, environment `release`. On GitHub, Settings →
+   Environments → `release` (optionally with a required reviewer), with the environment secret `NUGET_USER` = the
+   nuget.org profile name (not the email). The ID `Plugin.Maui.PDFViewer` was free on 2026-11-17.
 6. Tag and push: `git tag v0.1.0-preview.1 && git push origin v0.1.0-preview.1`. The fork commit the submodule points
    at must already be on GitHub.
 7. After nuget.org validates the package (minutes): check the readme renders, the symbols are indexed, and
