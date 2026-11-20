@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-preview.1 (unreleased)
+## 0.1.0-preview.1 (2026-11-20)
 
 First preview of `PdfView` for .NET MAUI 11 (.NET 11 only).
 
@@ -16,3 +16,5 @@ First preview of `PdfView` for .NET MAUI 11 (.NET 11 only).
   XAML and bindings.
 - Events and commands: `PageChanged`/`PageChangedCommand`, `DocumentLoaded`, `LoadFailed`, `LinkTapped`.
 - Screen reader support for page text and controls.
+- Windows: pages drawn with Win2D through a dedicated canvas and bitmap path (Maui.Graphics' Windows bitmap export
+  is not implemented, and Win2D differs in transforms and clipping).

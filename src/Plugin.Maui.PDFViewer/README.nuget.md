@@ -93,7 +93,7 @@ The full API, with examples, is in the [README on GitHub](https://github.com/yur
 
 ## Limitations
 
-No annotation editing, form filling or printing. A text selection stays on one page. Windows has not yet been tested on a device. See [Limitations](https://github.com/yurkinh/Plugin.Maui.PDFViewer#limitations) for details.
+No annotation editing, form filling or printing. A text selection stays on one page. On Windows, very sharp line corners overshoot slightly (Win2D). See [Limitations](https://github.com/yurkinh/Plugin.Maui.PDFViewer#limitations) for details.
 
 ## License
 

@@ -315,14 +315,13 @@ Next, in order:
 
 1. **Windows validation** (section 7, "Windows"). Done 2026-11-18: Windows build, 50 unit tests, both samples build,
    smoke test, 240 reference documents compared with SkiaSharp (no exceptions), `pack-nuget.sh` with five target
-   frameworks, and in the Sample: opening, zoom buttons, page buttons, switching documents, window resize. Still open:
-   - The hand checks: wheel, touch and pinch, double-click, links, keyboard, find bar, selection and Copy, Narrator,
-     File > Open, the password page, and the TestApp's Library, Gallery and Viewer.
+   frameworks, and in the Sample: opening, zoom buttons, page buttons, switching documents, window resize. The owner
+   finished the hand checks on Windows (2026-11-20) and merged the fixes (PR #1).
    - Known difference: Win2D clips a miter join that exceeds the miter limit instead of bevelling it, so very sharp
      corners overshoot (reference document `WpfLineRenderBug`, 6% of its pixels).
 2. **Apple checks**: the Native AOT gate locally; on the iPhone, press-and-hold selection and Copy, the find bar,
    tapping links, momentum scrolling and the scroll indicator (Android was verified).
-3. **First release** `0.1.0-preview.1` (section 6, "Releasing").
+3. **First release** `0.1.0-preview.1` (section 6, "Releasing"), 2026-11-20.
 4. After the preview, as feedback comes in:
    - A draggable scroll thumb (needs platform touch handling: MAUI's pan gesture does not report where a drag starts).
    - The find and selection bars in the toolbar's flat style; left-aligned items in the "⋯" menu.

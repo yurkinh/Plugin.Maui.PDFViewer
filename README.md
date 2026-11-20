@@ -1,10 +1,12 @@
 # Plugin.Maui.PDFViewer
 
+[![NuGet](https://img.shields.io/nuget/vpre/Plugin.Maui.PDFViewer.svg?label=NuGet)](https://www.nuget.org/packages/Plugin.Maui.PDFViewer)
+
 `PdfView` is a PDF viewer control for .NET MAUI 11 (.NET 11). It runs on Android, iOS, Mac Catalyst and Windows.
 
 Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a PDF renderer written entirely in .NET, and drawn with Microsoft.Maui.Graphics. There are no native PDF libraries, so a page looks the same on every platform. The package is trim and Native AOT compatible.
 
-> **Preview.** Version 0.1.0-preview.1. It is not on nuget.org yet; see [Building the package](#building-the-package).
+> **Preview.** Version 0.1.0-preview.1 on [nuget.org](https://www.nuget.org/packages/Plugin.Maui.PDFViewer). The API may still change before 1.0; see the [changelog](CHANGELOG.md).
 
 ## Features
 
@@ -192,7 +194,7 @@ public sealed class AskForPassword : IPasswordSource
 | Android | API 24 | No permissions needed. `FilePicker` returns content URIs; `PdfSource.FromFileResult` reads them. |
 | iOS | 15.0 | Apps need Xcode 27.2 with MAUI 11.0.0 (the iOS 27.2 SDK); older Xcode fails with MT180. |
 | Mac Catalyst | 17.0 | Xcode 27.2, as for iOS. To open picked files in a sandboxed app, add `com.apple.security.files.user-selected.read-only`. Trackpad scrolling pans the page. |
-| Windows | 10.0.17763 | The mouse wheel scrolls; Shift + wheel scrolls sideways and Ctrl + wheel zooms around the pointer. Built in CI, but not yet tested on a device. |
+| Windows | 10.0.17763 | The mouse wheel scrolls; Shift + wheel scrolls sideways and Ctrl + wheel zooms around the pointer. Pages are drawn with Win2D; very sharp line corners beyond the miter limit are clipped rather than bevelled, a small difference from the other platforms. |
 
 ## Performance
 
@@ -208,6 +210,8 @@ Release builds on a Motorola Edge 60 Neo (Android 16). The package targets .NET 
 | Search all 120 pages of the long sample | 32 s | 5 s |
 | Render every sample and reference document (251 documents, 390 pages) | 49 s | 13 s |
 
+On Windows (x64 desktop, Release), recording that page takes 116 ms and all 251 documents render in 9 s.
+
 On an iPhone 13 (.NET 11, Release): recording that page takes 62 ms, replaying it into a bitmap 125 ms (CoreGraphics is slow at filling text, which is why the viewer caches bitmaps), and drawing the cached bitmap 0.26 ms; all 251 documents render in 11 s. A Native AOT build on a Mac renders them in 2 s.
 
 Search reads each page's text with a pass like rendering that draws nothing. The first match appears as soon as its page is read. The plain text of every page read is kept, so later searches of the same document read only the pages that match.
@@ -220,7 +224,7 @@ Search reads each page's text with a pass like rendering that draws nothing. The
 - No "back" after following a link, and no pointer cursor over links on desktop.
 - Links can't be reached with a screen reader yet.
 - A screen reader reads the page's text in one go; it can't move through it line by line.
-- Windows has not been tested on a device.
+- On Windows, line joins sharper than the miter limit overshoot slightly (Win2D clips them instead of bevelling).
 
 ## Repository layout
 
@@ -259,6 +263,8 @@ The package targets .NET 11 only and is self-contained. The Melville.Pdf assembl
 Because the Melville assemblies are bundled, an app should not also reference upstream's Melville.Pdf packages: it would get two copies of the same assemblies.
 
 The second command checks the package the way an app developer would use it. It creates a new .NET MAUI app with the installed SDK, restores the package from `artifacts/nuget` into a fresh package folder, shows a PDF, and builds the app.
+
+On Windows, use Git Bash for the `.sh` scripts; building every target (and packing) also needs the Android SDK platform for API 37 and a real Python install (the Microsoft Store `python` stubs don't work). Only a package packed on Windows includes the Windows target, so releases are packed by CI.
 
 To check that the Windows code compiles on macOS or Linux, add `-p:IncludeWindowsTfm=true -p:EnableWindowsTargeting=true` to a build of the plugin project. The compile succeeds; a later Windows-only packaging step (`makepri.exe`) fails there.
 
