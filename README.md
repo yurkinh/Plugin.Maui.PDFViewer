@@ -1,12 +1,12 @@
 # Plugin.Maui.PDFViewer
 
-[![NuGet](https://img.shields.io/nuget/vpre/Plugin.Maui.PDFViewer.svg?label=NuGet)](https://www.nuget.org/packages/Plugin.Maui.PDFViewer)
+[![NuGet](https://img.shields.io/nuget/v/Plugin.Maui.PDFViewer.svg?label=NuGet)](https://www.nuget.org/packages/Plugin.Maui.PDFViewer)
 
 `PdfView` is a PDF viewer control for .NET MAUI 11 (.NET 11). It runs on Android, iOS, Mac Catalyst and Windows.
 
 Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a PDF renderer written entirely in .NET, and drawn with Microsoft.Maui.Graphics. There are no native PDF libraries, so a page looks the same on every platform. The package is trim and Native AOT compatible.
 
-> **Preview.** Version 0.1.0-preview.1 on [nuget.org](https://www.nuget.org/packages/Plugin.Maui.PDFViewer). The API may still change before 1.0; see the [changelog](CHANGELOG.md).
+Version 1.0.0 is on [nuget.org](https://www.nuget.org/packages/Plugin.Maui.PDFViewer); see the [changelog](CHANGELOG.md) for what changed.
 
 ## Features
 
@@ -30,8 +30,10 @@ Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a P
 ### 1. Install
 
 ```
-dotnet add package Plugin.Maui.PDFViewer --prerelease
+dotnet add package Plugin.Maui.PDFViewer
 ```
+
+The package needs Microsoft.Maui.Controls 11.0.10 or later. An app created from the MAUI 11.0.0 template references 11.0.0, so raise its `Microsoft.Maui.Controls` reference to 11.0.10 first; otherwise restore fails with a package downgrade error (NU1605).
 
 ### 2. Register
 
@@ -192,7 +194,7 @@ public sealed class AskForPassword : IPasswordSource
 | Platform | Minimum | Notes |
 |---|---|---|
 | Android | API 24 | No permissions needed. `FilePicker` returns content URIs; `PdfSource.FromFileResult` reads them. |
-| iOS | 15.0 | Apps need Xcode 27.2 with MAUI 11.0.0 (the iOS 27.2 SDK); older Xcode fails with MT180. |
+| iOS | 15.0 | Apps need Xcode 27.2 with MAUI 11 (the iOS 27.2 SDK); older Xcode fails with MT180. |
 | Mac Catalyst | 17.0 | Xcode 27.2, as for iOS. To open picked files in a sandboxed app, add `com.apple.security.files.user-selected.read-only`. Trackpad scrolling pans the page. |
 | Windows | 10.0.17763 | The mouse wheel scrolls; Shift + wheel scrolls sideways and Ctrl + wheel zooms around the pointer. Pages are drawn with Win2D; very sharp line corners beyond the miter limit are clipped rather than bevelled, a small difference from the other platforms. |
 

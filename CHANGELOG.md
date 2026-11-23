@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0 (2026-11-23)
+
+The first stable release. The API is the same as in 0.1.0-preview.1.
+
+- Requires Microsoft.Maui.Controls 11.0.10 or later (was 11.0.0). Apps created from the MAUI 11.0.0 template must raise
+  their `Microsoft.Maui.Controls` reference to 11.0.10.
+- CoreJ2K 2.4.2.112 (was 2.3.3.91) for JPEG 2000 images.
+
 ## 0.1.0-preview.1 (2026-11-20)
 
 First preview of `PdfView` for .NET MAUI 11 (.NET 11 only).

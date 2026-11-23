@@ -40,7 +40,7 @@ model or text layer needs it.
 git clone --recursive https://github.com/yurkinh/Plugin.Maui.PDFViewer.git
 cd Plugin.Maui.PDFViewer
 ./external/Pdf/Src/install-dotnet.sh                  # SDK 11.0.100 (global.json) into external/Pdf/Src/.dotnet, + .NET 10 runtime
-external/Pdf/Src/.dotnet/dotnet workload install maui # MAUI 11.0.0
+external/Pdf/Src/.dotnet/dotnet workload install maui # MAUI 11
 ./external/Pdf/build-local-packages.sh                # Melville.StreamInterfaces + IntersectionTypes into the fork's local feed
 ```
 
@@ -85,9 +85,11 @@ dotnet build samples/Plugin.Maui.PDFViewer.Sample.slnx           # both samples
 
 - `PluginTfm` = `net11.0`. **.NET 11 only** (decision 2026-11-12): no net10 targets in the plugin, tests or samples.
   The fork's libraries still build `net10.0;net11.0` for upstream; the package bundles their net11.0 builds.
-- `PluginMauiVersion` = `11.0.0`: the `Microsoft.Maui.Controls` version, and so the package's minimum dependency.
-  Keep it at the lowest MAUI 11: apps created from the 11.0.0 workload reference 11.0.0, and a higher minimum makes
-  their restore fail (NU1605 downgrade). Not `$(MauiVersion)`, so the package doesn't depend on the building workload.
+- `PluginMauiVersion` = `11.0.10`: the samples' `Microsoft.Maui.Controls`. It must equal the plugin csproj's
+  `Microsoft.Maui.Controls` version (11.0.10 since 1.0.0, the package's minimum dependency), or the samples' restore
+  fails with NU1605 (downgrade). For the same reason apps need Microsoft.Maui.Controls 11.0.10 or later: an app made
+  from the 11.0.0 workload template must raise its `Microsoft.Maui.Controls` reference. Not `$(MauiVersion)`, so the
+  package doesn't depend on the building workload.
 - Runtime async is on (`<Features>runtime-async=on</Features>`); `-p:PluginRuntimeAsync=false` turns it off. It
   needs CoreCLR, which is the .NET 11 default on Android, iOS and Mac Catalyst (`UseMonoRuntime=false`). The fork's
   libraries turn it on for net11.0 in `external/Pdf/Src/Directory.Build.Props` (`-p:MelvilleRuntimeAsync=false`).
@@ -144,7 +146,7 @@ runs in the GitHub environment `release` (secret `NUGET_USER`), and `NuGet/login
 push. On a Windows runner it builds the fork's local packages, runs the tests, packs with the tag's version and pushes
 `Plugin.Maui.PDFViewer.*.nupkg` with its `.snupkg` (never the fork's local Melville.Streams packages).
 
-Checklist for the first release (`0.1.0-preview.1`):
+Checklist for a release (first used for `0.1.0-preview.1`, then `1.0.0`):
 
 1. Windows validated (section 7, "Windows").
 2. `main` green: "Build for CI" (Windows build, tests, package; the Native AOT gate) and "Build Sample App for CI"
@@ -157,13 +159,13 @@ Checklist for the first release (`0.1.0-preview.1`):
    `Plugin.Maui.PDFViewer`, workflow file `release-nuget.yml`, environment `release`. On GitHub, Settings →
    Environments → `release` (optionally with a required reviewer), with the environment secret `NUGET_USER` = the
    nuget.org profile name (not the email). The ID `Plugin.Maui.PDFViewer` was free on 2026-11-17.
-6. Tag and push: `git tag v0.1.0-preview.1 && git push origin v0.1.0-preview.1`. The fork commit the submodule points
+6. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`. The fork commit the submodule points
    at must already be on GitHub.
 7. After nuget.org validates the package (minutes): check the readme renders, the symbols are indexed, and
-   `dotnet add package Plugin.Maui.PDFViewer --prerelease` works in a new MAUI 11 app. Create a GitHub release for the
+   `dotnet add package Plugin.Maui.PDFViewer` (`--prerelease` for a preview) works in a new MAUI 11 app. Create a GitHub release for the
    tag with the CHANGELOG entry.
 
-Without a tag, the version is `PluginVersion` in `Directory.Build.props` (currently `0.1.0-preview.1`). Local test
+Without a tag, the version is `PluginVersion` in `Directory.Build.props` (currently `1.0.0`). Local test
 builds reuse that version, so after repacking delete `~/.nuget/packages/plugin.maui.pdfviewer/<version>` (and the
 consuming app's `obj`/`bin`) or the app keeps the cached copy.
 
@@ -323,8 +325,9 @@ Next, in order:
      corners overshoot (reference document `WpfLineRenderBug`, 6% of its pixels).
 2. **Apple checks**: the Native AOT gate locally; on the iPhone, press-and-hold selection and Copy, the find bar,
    tapping links, momentum scrolling and the scroll indicator (Android was verified).
-3. **First release** `0.1.0-preview.1` (section 6, "Releasing"), 2026-11-20.
-4. After the preview, as feedback comes in:
+3. **First release** `0.1.0-preview.1` (section 6, "Releasing"), 2026-11-20, published with trusted publishing.
+   **1.0.0**, 2026-11-23: same API; Microsoft.Maui.Controls 11.0.10 and CoreJ2K 2.4.2.112.
+4. After 1.0, as feedback comes in:
    - A draggable scroll thumb (needs platform touch handling: MAUI's pan gesture does not report where a drag starts).
    - The find and selection bars in the toolbar's flat style; left-aligned items in the "⋯" menu.
    - Public types still from Melville: `IPasswordSource`, the font mapper option.

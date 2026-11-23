@@ -18,7 +18,7 @@ Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a P
 ## Getting started
 
 ```
-dotnet add package Plugin.Maui.PDFViewer --prerelease
+dotnet add package Plugin.Maui.PDFViewer
 ```
 
 Register it in `MauiProgram.cs`:
@@ -85,9 +85,9 @@ The full API, with examples, is in the [README on GitHub](https://github.com/yur
 
 ## Requirements
 
-- .NET 11 and .NET MAUI 11.0.0 or later.
+- .NET 11 and Microsoft.Maui.Controls 11.0.10 or later. An app created from the MAUI 11.0.0 template references 11.0.0: raise it to 11.0.10, or restore fails with a package downgrade error (NU1605).
 - Android API 24, iOS 15, Mac Catalyst 17, Windows 10.0.17763.
-- iOS and Mac Catalyst apps build with Xcode 27.2 (MAUI 11.0.0). Apps built with the iOS 27 SDK must use the UIKit scene lifecycle (a `UIApplicationSceneManifest` in `Info.plist` and a scene delegate); see https://aka.ms/uiscene.
+- iOS and Mac Catalyst apps build with Xcode 27.2 (MAUI 11). Apps built with the iOS 27 SDK must use the UIKit scene lifecycle (a `UIApplicationSceneManifest` in `Info.plist` and a scene delegate); see https://aka.ms/uiscene.
 - Fonts are included for documents that don't embed theirs: Latin, Greek, Cyrillic and symbols. Chinese, Japanese and Korean documents need embedded fonts, or your own font mapper (`UseMauiPdf(o => o.FontMapper = ...)`).
 - The Melville.Pdf assemblies the viewer uses are inside this package. Don't also reference the upstream `Melville.Pdf.*` packages: the app would get two copies of the same assemblies.
 

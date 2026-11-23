@@ -35,7 +35,7 @@
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<Title>.NET MAUI PDF Viewer Plugin</Title>
 		<Description>PdfView, a PDF viewer control for .NET MAUI 11 on Android, iOS, Mac Catalyst and Windows: continuous or single-page scrolling with momentum, pinch and double-tap zoom, search, text selection and copy, links, layers, encrypted documents and saved reading positions. Pages are rendered in pure .NET (Melville.Pdf) and drawn with Microsoft.Maui.Graphics, so they look the same on every platform; no native PDF libraries. Trim and Native AOT compatible.</Description>
-		<PackageReleaseNotes>First preview. Changes: https://github.com/yurkinh/Plugin.Maui.PDFViewer/blob/main/CHANGELOG.md</PackageReleaseNotes>
+		<PackageReleaseNotes>1.0.0, the first stable release. Changes: https://github.com/yurkinh/Plugin.Maui.PDFViewer/blob/main/CHANGELOG.md</PackageReleaseNotes>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
 		<DebugType>portable</DebugType>
