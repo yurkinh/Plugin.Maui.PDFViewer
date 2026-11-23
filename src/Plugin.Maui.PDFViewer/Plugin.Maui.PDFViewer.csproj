@@ -91,17 +91,6 @@
 		<TargetsForTfmSpecificDebugSymbolsInPackage>$(TargetsForTfmSpecificDebugSymbolsInPackage);BundleMelvilleSymbols</TargetsForTfmSpecificDebugSymbolsInPackage>
 	</PropertyGroup>
 
-	<!-- Private references hide the Melville projects' own package dependencies too, so they are restated here. These
-	     are on nuget.org; keep the versions in step with external/Pdf/Src/Directory.Packages.props (pack-nuget.sh
-	     checks). Melville.StreamInterfaces and Melville.IntersectionTypes are not on nuget.org: they are bundled. -->
-	<ItemGroup Condition="'$(BundleMelville)' == 'true'">
-		<PackageReference Include="CoreJ2K" Version="2.3.3.91" />
-		<PackageReference Include="Melville.Hacks" Version="0.8.5" />
-		<PackageReference Include="Melville.INPC" Version="0.8.5" />
-		<PackageReference Include="Melville.Linq" Version="0.8.5" />
-		<!-- Microsoft.Maui.Graphics comes with Microsoft.Maui.Controls. -->
-	</ItemGroup>
-
 	<Target Name="CollectMelvilleAssemblies" DependsOnTargets="ResolveReferences">
 		<ItemGroup>
 			<_MelvilleBundled Include="@(ReferencePath)" Condition="'%(ReferencePath.ReferenceSourceTarget)' == 'ProjectReference' Or '%(ReferencePath.NuGetPackageId)' == 'Melville.StreamInterfaces' Or '%(ReferencePath.NuGetPackageId)' == 'Melville.IntersectionTypes'" />
@@ -125,8 +114,17 @@
 		<InternalsVisibleTo Include="Plugin.Maui.PDFViewer.Tests" />
 	</ItemGroup>
 
+	<!-- All package references live in this one ItemGroup (NuGet GUI tools in the editor expect exactly one). -->
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(PluginMauiVersion)" />
+		<!-- Private references hide the Melville projects' own package dependencies too, so they are restated here when
+		     packing. These are on nuget.org; keep the versions in step with external/Pdf/Src/Directory.Packages.props
+		     (pack-nuget.sh checks). Melville.StreamInterfaces and Melville.IntersectionTypes are not on nuget.org: they
+		     are bundled. Microsoft.Maui.Graphics comes with Microsoft.Maui.Controls. -->
+		<PackageReference Include="CoreJ2K" Version="2.3.3.91" Condition="'$(BundleMelville)' == 'true'" />
+		<PackageReference Include="Melville.Hacks" Version="0.8.5" Condition="'$(BundleMelville)' == 'true'" />
+		<PackageReference Include="Melville.INPC" Version="0.8.5" Condition="'$(BundleMelville)' == 'true'" />
+		<PackageReference Include="Melville.Linq" Version="0.8.5" Condition="'$(BundleMelville)' == 'true'" />
 	</ItemGroup>
 
 	<!-- Package additions -->
