@@ -116,12 +116,12 @@
 
 	<!-- All package references live in this one ItemGroup (NuGet GUI tools in the editor expect exactly one). -->
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Maui.Controls" Version="$(PluginMauiVersion)" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="11.0.10" />
 		<!-- Private references hide the Melville projects' own package dependencies too, so they are restated here when
 		     packing. These are on nuget.org; keep the versions in step with external/Pdf/Src/Directory.Packages.props
 		     (pack-nuget.sh checks). Melville.StreamInterfaces and Melville.IntersectionTypes are not on nuget.org: they
 		     are bundled. Microsoft.Maui.Graphics comes with Microsoft.Maui.Controls. -->
-		<PackageReference Include="CoreJ2K" Version="2.3.3.91" Condition="'$(BundleMelville)' == 'true'" />
+		<PackageReference Include="CoreJ2K" Version="2.4.2.112" Condition="'$(BundleMelville)' == 'true'" />
 		<PackageReference Include="Melville.Hacks" Version="0.8.5" Condition="'$(BundleMelville)' == 'true'" />
 		<PackageReference Include="Melville.INPC" Version="0.8.5" Condition="'$(BundleMelville)' == 'true'" />
 		<PackageReference Include="Melville.Linq" Version="0.8.5" Condition="'$(BundleMelville)' == 'true'" />
@@ -132,8 +132,8 @@
 		<None Include="..\..\nuget.png" PackagePath="icon.png" Pack="true" />
 		<!-- The package's own readme (what app developers need; absolute links, since nuget.org does not resolve
 		     relative ones), packed as README.md. The repository README also covers building and the fork. -->
-		<None Include="README.nuget.md" Pack="true" PackagePath="README.md"/>
-		<None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\"/>
+		<None Include="README.nuget.md" Pack="true" PackagePath="README.md" />
+		<None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 </Project>
