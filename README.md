@@ -2,6 +2,8 @@
 
 [![NuGet](https://img.shields.io/nuget/v/Plugin.Maui.PDFViewer.svg?label=NuGet)](https://www.nuget.org/packages/Plugin.Maui.PDFViewer)
 
+![PdfView on iPhone in light and dark mode, showing a 120-page document](docs/images/hero.jpg)
+
 `PdfView` is a PDF viewer control for .NET MAUI 11 (.NET 11). It runs on Android, iOS, Mac Catalyst and Windows.
 
 Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a PDF renderer written entirely in .NET, and drawn with Microsoft.Maui.Graphics. There are no native PDF libraries, so a page looks the same on every platform. The package is trim and Native AOT compatible.
@@ -9,6 +11,8 @@ Pages are rendered by [Melville.Pdf](https://github.com/DrJohnMelville/Pdf), a P
 Version 1.0.0 is on [nuget.org](https://www.nuget.org/packages/Plugin.Maui.PDFViewer); see the [changelog](CHANGELOG.md) for what changed.
 
 ## Features
+
+<img src="docs/images/search.png" alt="Search matches highlighted on a page, the current match in orange" width="420" align="right">
 
 - **Display modes:** **continuous scroll** through all pages (the default), vertically or horizontally, or one page at a time. Pages fit the width by default and sit on a white background with a soft shadow. Only the pages near the view are rendered.
 - **Gestures:** pinch to zoom around your fingers, drag to pan with momentum (a flick keeps scrolling and slows down; a touch stops it), double-tap to switch between fit width and 2×. A thin scroll indicator shows where you are while scrolling and fades out afterwards.
