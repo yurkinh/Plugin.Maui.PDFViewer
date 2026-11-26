@@ -232,49 +232,6 @@ Search reads each page's text with a pass like rendering that draws nothing. The
 - A screen reader reads the page's text in one go; it can't move through it line by line.
 - On Windows, line joins sharper than the miter limit overshoot slightly (Win2D clips them instead of bevelling).
 
-## Repository layout
-
-This repository follows the [Plugin.Maui.Feature](https://github.com/jfversluis/Plugin.Maui.Feature) template.
-
-| Path | Contents |
-|---|---|
-| `src/Plugin.Maui.PDFViewer` | The plugin. Almost everything is shared, because pages are drawn with Maui.Graphics. The few platform files use the template's suffixes (`*.android.cs`, `*.macios.cs`). It also targets plain `net11.0`, for unit tests. `README.nuget.md` is the package's readme on nuget.org. |
-| `samples/Plugin.Maui.PDFViewer.Sample` | The sample to copy from: one page with a `PdfView`. |
-| `samples/Plugin.Maui.PDFViewer.TestApp` | A diagnostics app: a library of bundled PDFs, a gallery of about 240 reference documents, timings, a smoke test, and an unattended run (`MELVILLE_AUTORUN=1`). |
-| `tests/Plugin.Maui.PDFViewer.Tests` | Tests of the control, and of the bundled sample PDFs. |
-| `external/Pdf` | The Melville.Pdf renderer, a fork of [DrJohnMelville/Pdf](https://github.com/DrJohnMelville/Pdf), as a git submodule. |
-| `tools`, `pack-nuget.sh` | The sample corpus generator, packaging, and a check that the package works in a new app. |
-
-## Building
-
-```bash
-git clone --recursive https://github.com/yurkinh/Plugin.Maui.PDFViewer.git
-cd Plugin.Maui.PDFViewer
-./external/Pdf/Src/install-dotnet.sh         # the .NET 11 SDK global.json asks for (the fork's libraries also need the .NET 10 runtime)
-external/Pdf/Src/.dotnet/dotnet workload install maui
-./external/Pdf/build-local-packages.sh       # Melville.StreamInterfaces, from the fork's submodule
-external/Pdf/Src/.dotnet/dotnet build samples/Plugin.Maui.PDFViewer.Sample.slnx
-external/Pdf/Src/.dotnet/dotnet test --project tests/Plugin.Maui.PDFViewer.Tests/Plugin.Maui.PDFViewer.Tests.csproj
-```
-
-## Building the package
-
-```bash
-./pack-nuget.sh                                         # writes artifacts/nuget/Plugin.Maui.PDFViewer.*.nupkg
-./tools/test-package-consumer.sh net11.0-android net11.0-ios
-```
-
-The package targets .NET 11 only and is self-contained. The Melville.Pdf assemblies it uses are built from the fork in `external/Pdf` and bundled in its `lib` folders: the fork adds the MAUI renderer, viewer model, links and text layer to upstream, and the `Melville.*` IDs on nuget.org belong to the upstream author. Its dependencies are packages on nuget.org: Microsoft.Maui.Controls, CoreJ2K, Melville.Hacks, Melville.INPC and Melville.Linq. `pack-nuget.sh` fails if any target framework lacks a bundled assembly, if a dependency is something else, or if those versions drift from the fork's. CI packs on every push and uploads the package as a build artifact.
-
-Because the Melville assemblies are bundled, an app should not also reference upstream's Melville.Pdf packages: it would get two copies of the same assemblies.
-
-The second command checks the package the way an app developer would use it. It creates a new .NET MAUI app with the installed SDK, restores the package from `artifacts/nuget` into a fresh package folder, shows a PDF, and builds the app.
-
-On Windows, use Git Bash for the `.sh` scripts; building every target (and packing) also needs the Android SDK platform for API 37 and a real Python install (the Microsoft Store `python` stubs don't work). Only a package packed on Windows includes the Windows target, so releases are packed by CI.
-
-To check that the Windows code compiles on macOS or Linux, add `-p:IncludeWindowsTfm=true -p:EnableWindowsTargeting=true` to a build of the plugin project. The compile succeeds; a later Windows-only packaging step (`makepri.exe`) fails there.
-
-
 
 ## Credits and license
 
